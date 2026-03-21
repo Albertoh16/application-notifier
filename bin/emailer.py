@@ -34,8 +34,8 @@ def sendEmail(jobs):
 
     msg = MIMEText(body, "html")
 
-    sixHoursAgo = today - timedelta(hours=6)
-    timeRange = f"({sixHoursAgo.strftime('%-I:%M%p')} - {today.strftime('%-I:%M%p')})"
+    tenHoursAgo = today - timedelta(hours=10)
+    timeRange = f"({tenHoursAgo.strftime('%-I:%M%p')} - {today.strftime('%-I:%M%p')})"
 
     dateStr = today.strftime("%m/%d/%Y")
     
