@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 def withinTimeLimit(time):
     posted = datetime.fromtimestamp(time / 1000)
     now = datetime.now()
-    return (now - posted) <= timedelta(hours=14)
+    return (now - posted) <= timedelta(hours=13)
 
 # We only take in jobs that are applicable to our customized filter.
 def validJob(job):
