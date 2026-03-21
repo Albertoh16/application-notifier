@@ -1,0 +1,32 @@
+name: Job Scraper
+
+# We'll run our scraper 4 times a day in 6 hour intervals.
+on:
+  schedule:
+    - cron: '0 6 * * *'  
+    - cron: '0 12 * * *'  
+    - cron: '0 18 * * *' 
+    - cron: '0 24 * * *' 
+  workflow_dispatch:      
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install playwright python-dotenv
+          playwright install chromium
+
+      - name: Run scraper
+        env:
+          EMAIL: ${{ secrets.EMAIL }}
+          PASSWORD: ${{ secrets.NOTIFIER_EMAIL_PASSWORD }}
+        run: python3 bin/scraper.py
