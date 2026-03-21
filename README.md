@@ -1,4 +1,4 @@
-# Application Notifier
+# Job Posting Emailer
 
 This is basically a job scraping tool that automatically emails you internship postings from [Jobright] every 6 hour intervals in the day.
 ---
