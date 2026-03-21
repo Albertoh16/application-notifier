@@ -1,5 +1,5 @@
 import smtplib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
 from dotenv import load_dotenv
 import os
@@ -16,7 +16,7 @@ def formatEmail(jobs):
         
         for title, link, loc, model, _, time in jobs[job]:
             indent = "&nbsp;&nbsp;" * 6
-            postTime = (datetime.fromtimestamp(time / 1000) + timedelta(hours=8)).strftime('%-I:%M%p')
+            postTime = (datetime.fromtimestamp(time / 1000, tz=timezone.utc) - timedelta(hours=4)).strftime('%-I:%M%p')
             result += f'<p>{indent}<span style="font-size:16px">{postTime} | </span> <a href="{link}">{title} | {loc} | {model}</a></p>'
     result += "</ul>"
 
@@ -28,17 +28,17 @@ def sendEmail(jobs):
     if not jobs:
         return
     
-    today = datetime.now()
+    today = datetime.now(tz=timezone.utc) - timedelta(hours=4)
 
     body = formatEmail(jobs)
 
     msg = MIMEText(body, "html")
 
-    tenHoursAgo = today - timedelta(hours=10)
-    timeRange = f"({tenHoursAgo.strftime('%-I:%M%p')} - {today.strftime('%-I:%M%p')})"
+    sixHoursAgo = today - timedelta(hours=6)
+    timeRange = f"({sixHoursAgo.strftime('%-I:%M%p')} - {today.strftime('%-I:%M%p')})"
 
     dateStr = today.strftime("%m/%d/%Y")
-    
+
     msg["Subject"] = f"{dateStr} {timeRange} Job Postings" 
     msg["From"] = "jobnotifier.bot@gmail.com"
     msg["To"] = os.getenv("EMAIL")
