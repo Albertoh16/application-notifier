@@ -11,8 +11,11 @@ def formatEmail(jobs):
     result = "<ul>"
 
     for job in jobs.keys():
+        # We take the industries to place next to the company, but if there are no industries listed, 
+        # then we'll just print nothing.
         industry = ", ".join(jobs[job][0][4])
-        result += f"<h2><b>{job} ({industry})</b></h2>"
+        industryStr = f" ({industry})" if industry else ""
+        result += f"<h2><b>{job}{industryStr}</b></h2>"
         
         for title, link, loc, model, _, time in jobs[job]:
             indent = "&nbsp;&nbsp;" * 6
