@@ -11,7 +11,7 @@ PASSWORD = os.getenv("JOBRIGHT_PASSWORD")
 
 # This opens an invisible chromium-based browser.
 def getBrowser(playwright):
-    print("[DEBUG] Launching headless Chromium...")
+    print("Launching headless Chromium")
     return playwright.chromium.launch(headless=True)
 
 
@@ -34,14 +34,20 @@ def loginToJobright(page, email, password):
 
 # This clicks the apply button in the jobright page and fetches the real application link.
 def getApplicationURL(page, jobURL):
-    page.goto(jobURL)
-    page.wait_for_load_state("networkidle")
+    print(f"Navigating to: {jobURL}")
+    page.goto(jobURL, timeout=15000)
+    
+    try:
+        page.wait_for_load_state("networkidle", timeout=10000)
+        
+    except:
+        print(f"networkidle timed out")
 
     try:
         applyButton = None
         
         selectors = [
-            ".index_applyButton__k3XwL",  # exact class from debug
+            ".index_applyButton__k3XwL",
             "text=Apply Now",
             "button:has-text('APPLY NOW')",
         ]
@@ -53,29 +59,32 @@ def getApplicationURL(page, jobURL):
                 if btn.is_visible():
                     applyButton = btn
                     break
+                    
             except:
                 continue
 
         if not applyButton:
+            print(f"No apply button found, returning original")
             return jobURL
 
         applyButton.click()
 
+        # Handles the "Customize Your Resume" popup
         try:
             page.wait_for_selector("text=Apply Without Customizing", timeout=5000)
-            print(f"  [DEBUG] Resume modal appeared, clicking 'Apply Without Customizing'...")
+            print(f"Resume popup appeared, clicking 'Apply Without Customizing'")
 
             context = page.context
             
             try:
-                with context.expect_page(timeout=5000) as newPageInfo:
+                with context.expect_page(timeout=8000) as newPageInfo:
                     page.click("text=Apply Without Customizing")
                     
                 newPage = newPageInfo.value
-                newPage.wait_for_load_state("load")
+                newPage.wait_for_load_state("load", timeout=10000)
                 realURL = newPage.url
-                newPage.close()
                 
+                newPage.close()
                 return realURL
                 
             except:
@@ -89,10 +98,9 @@ def getApplicationURL(page, jobURL):
                 return jobURL
 
         except:
-            context = page.context
             time.sleep(2)
             realURL = page.url
-            
+
             if realURL != jobURL:
                 page.go_back()
                 return realURL
@@ -100,15 +108,11 @@ def getApplicationURL(page, jobURL):
             return jobURL
 
     except Exception as e:
-        print(f"  [DEBUG] Exception: {e}")
+        print(f"Exception: {e}")
         return jobURL
 
 # This fetches the actual application URL and replaces the jobright URL in the original listing.
 def skipJobrightPage(jobs: dict) -> dict:
-    print(f"\n[DEBUG] skipJobrightPage called with {sum(len(v) for v in jobs.values())} total jobs across {len(jobs)} companies")
-    print(f"[DEBUG] EMAIL loaded: {'yes' if EMAIL else 'NO - CHECK SECRETS'}")
-    print(f"[DEBUG] PASSWORD loaded: {'yes' if PASSWORD else 'NO - CHECK SECRETS'}")
-
     with sync_playwright() as playwright:
         browser = getBrowser(playwright)
         context = browser.new_context()
@@ -120,22 +124,22 @@ def skipJobrightPage(jobs: dict) -> dict:
             fixedJobs = {}
 
             for company, listings in jobs.items():
-                print(f"\n[DEBUG] Processing company: {company} ({len(listings)} listings)")
+                print(f"\nProcessing company: {company} ({len(listings)} listings)")
                 fixedJobs[company] = []
 
                 for (title, jobrightURL, location, workModel, industry, postDate) in listings:
-                    print(f"[DEBUG] Processing: {title}")
+                    print(f"Processing: {title}")
                     realURL = getApplicationURL(page, jobrightURL)
                     fixedJobs[company].append((title, realURL, location, workModel, industry, postDate))
                     time.sleep(1)
 
-            print(f"\n[DEBUG] Done! Resolved {sum(len(v) for v in fixedJobs.values())} jobs")
+            print(f"\nDone! Resolved {sum(len(v) for v in fixedJobs.values())} jobs")
             return fixedJobs
 
         except Exception as e:
-            print(f"[DEBUG] Fatal error in skipJobrightPage: {e}")
+            print(f"Fatal error in skipJobrightPage: {e}")
             return jobs
 
         finally:
             browser.close()
-            print("[DEBUG] Browser closed")
+            print("Browser closed")
