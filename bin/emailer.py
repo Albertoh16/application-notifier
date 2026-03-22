@@ -30,7 +30,7 @@ def sendEmail(jobs, runTime):
     # If there are no jobs found this interval, then we will let the user know in an email.
     if not jobs:
         body = """
-            <h2>No jobs have been found );.</h2>
+            <h2>No jobs have been found );</h2>
             <p>There were no postings that matched your current filters. 
             Try adjusting your <b>config.py</b> to potentially discover more!</p>
         """
