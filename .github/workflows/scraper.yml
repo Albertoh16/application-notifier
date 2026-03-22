@@ -25,9 +25,12 @@ jobs:
         run: |
           pip install playwright python-dotenv
           playwright install chromium
+          playwright install-deps chromium
 
       - name: Run scraper
         env:
           EMAIL: ${{ secrets.EMAIL }}
           PASSWORD: ${{ secrets.NOTIFIER_EMAIL_PASSWORD }}
+          JOBRIGHT_EMAIL: ${{ secrets.JOBRIGHT_EMAIL }}
+          JOBRIGHT_PASSWORD: ${{ secrets.JOBRIGHT_PASSWORD }}
         run: python3 bin/scraper.py

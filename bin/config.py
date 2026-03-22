@@ -8,12 +8,12 @@ FILTERS = {
     # The type of work you are looking for (Engineering, Developer, Software, Design, Research, etc.)
     "role": {"Engineering", "Engineer", "Developer", "Development", "Software"},
     # Roles you want to exclude.
-    "exclude role": {"Network", "Networking", "IT"},
+    "exclude role": {"IT"},
 
     # The specialization you want (AI, ML, Backend, Frontend, Full Stack, Cloud)
     "specialization": {},
     # Specializations you want to exclude.
-    "exclude specialization": {"Data", "Mobile", "Robotics"},
+    "exclude specialization": {"Data", "Mobile", "Robotics", "Network", "Networking", "Cloud"},
 
     # Keywords that must appear in the qualifications (Bachelors, Bachelor's, Undergraduate, 2026, 2027, etc.)
     "qualification": {"Bachelors", "Bachelor's", "BA", "Undergraduate", "2026"},
