@@ -20,18 +20,35 @@ def validJob(job):
     jobIndustry = ", ".join(job["industry"]).lower()
     jobQualifications = job["qualifications"].lower()
 
-    # If any excluded word appears in any field, we immediately reject the job.
-    if FILTERS.get("exclude"):
-        if any(word.lower() in jobTitle or word.lower() in jobIndustry or word.lower() in jobQualifications for word in FILTERS["exclude"]):
+    # We check each field against its specific exclude list.
+    if FILTERS.get("exclude position"):
+        if any(word.lower() in jobTitle for word in FILTERS["exclude position"]):
             return False
 
-    # We check if we find our keywords is in the job title, also will return true for each filter that is empty.
+    if FILTERS.get("exclude role"):
+        if any(word.lower() in jobTitle for word in FILTERS["exclude role"]):
+            return False
+
+    if FILTERS.get("exclude specialization"):
+        if any(word.lower() in jobTitle for word in FILTERS["exclude specialization"]):
+            return False
+
+    if FILTERS.get("exclude qualification"):
+        if any(word.lower() in jobQualifications for word in FILTERS["exclude qualification"]):
+            return False
+
+    if FILTERS.get("exclude industry"):
+        if any(word.lower() in jobIndustry for word in FILTERS["exclude industry"]):
+            return False
+
+    # We check if we find our keywords in the job title, also will return true for each filter that is empty.
     hasPosition = any(word.lower() in jobTitle for word in FILTERS["position"]) if FILTERS["position"] else True
     hasRole = any(word.lower() in jobTitle for word in FILTERS["role"]) if FILTERS["role"] else True
-    hasqualification = any(word.lower() in jobQualifications for word in FILTERS["qualification"]) if FILTERS["qualification"] else True
+    hasSpecialization = any(word.lower() in jobTitle for word in FILTERS["specialization"]) if FILTERS["specialization"] else True
+    hasQualification = any(word.lower() in jobQualifications for word in FILTERS["qualification"]) if FILTERS["qualification"] else True
     hasIndustry = any(word.lower() in jobIndustry for word in FILTERS["industry"]) if FILTERS["industry"] else True
 
-    return hasPosition and hasRole and hasqualification and hasIndustry
+    return hasPosition and hasRole and hasSpecialization and hasQualification and hasIndustry
 
 initialTime = datetime.now(tz=timezone.utc)
 
