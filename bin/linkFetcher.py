@@ -32,71 +32,76 @@ def loginToJobright(page, email, password):
     page.wait_for_selector(".ant-modal-content", state="hidden", timeout=15000)
     time.sleep(2)
 
-
+# This clicks the apply button in the jobright page and fetches the real application link.
 def getApplicationURL(page, jobURL):
-    print(f"\n[DEBUG] Navigating to job URL: {jobURL}")
     page.goto(jobURL)
     page.wait_for_load_state("networkidle")
-    print(f"[DEBUG] Page loaded. Current URL: {page.url}")
 
     try:
         applyButton = None
+        
         selectors = [
+            ".index_applyButton__k3XwL",  # exact class from debug
             "text=Apply Now",
-            "text=Apply on Employer Site",
-            "a:has-text('Apply')",
-            "button:has-text('Apply')",
+            "button:has-text('APPLY NOW')",
         ]
 
         for selector in selectors:
             try:
                 btn = page.locator(selector).first
+                
                 if btn.is_visible():
-                    print(f"[DEBUG] Found apply button with selector: '{selector}'")
                     applyButton = btn
                     break
-                else:
-                    print(f"[DEBUG] Selector '{selector}' found but not visible")
-            except Exception as e:
-                print(f"[DEBUG] Selector '{selector}' failed: {e}")
+            except:
                 continue
 
         if not applyButton:
-            print(f"[DEBUG] No apply button found on {jobURL}, returning original URL")
             return jobURL
 
-        context = page.context
+        applyButton.click()
 
         try:
-            print("[DEBUG] Clicking apply button, waiting for new tab...")
-            with context.expect_page(timeout=5000) as newPageInfo:
-                applyButton.click()
+            page.wait_for_selector("text=Apply Without Customizing", timeout=5000)
+            print(f"  [DEBUG] Resume modal appeared, clicking 'Apply Without Customizing'...")
 
-            newPage = newPageInfo.value
-            newPage.wait_for_load_state("load")
-            realURL = newPage.url
-            print(f"[DEBUG] New tab opened with URL: {realURL}")
-            newPage.close()
-
-        except Exception as e:
-            print(f"[DEBUG] No new tab opened ({e}), checking for same-tab redirect...")
-            time.sleep(2)
-            realURL = page.url
-            print(f"[DEBUG] Current URL after click: {realURL}")
-
-            if realURL == jobURL:
-                print(f"[DEBUG] URL unchanged, returning original")
+            context = page.context
+            
+            try:
+                with context.expect_page(timeout=5000) as newPageInfo:
+                    page.click("text=Apply Without Customizing")
+                    
+                newPage = newPageInfo.value
+                newPage.wait_for_load_state("load")
+                realURL = newPage.url
+                newPage.close()
+                
+                return realURL
+                
+            except:
+                time.sleep(2)
+                realURL = page.url
+                
+                if realURL != jobURL:
+                    page.go_back()
+                    return realURL
+                    
                 return jobURL
 
-            page.go_back()
-
-        print(f"[DEBUG] Resolved URL: {realURL}")
-        return realURL
+        except:
+            context = page.context
+            time.sleep(2)
+            realURL = page.url
+            
+            if realURL != jobURL:
+                page.go_back()
+                return realURL
+                
+            return jobURL
 
     except Exception as e:
-        print(f"[DEBUG] Exception in getApplicationURL: {e}")
+        print(f"  [DEBUG] Exception: {e}")
         return jobURL
-
 
 # This fetches the actual application URL and replaces the jobright URL in the original listing.
 def skipJobrightPage(jobs: dict) -> dict:
