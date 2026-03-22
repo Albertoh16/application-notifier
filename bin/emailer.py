@@ -27,11 +27,17 @@ def formatEmail(jobs):
 
 # We then send our formatted html to our email using the email in the env.
 def sendEmail(jobs, runTime):
-    # We don't send any email if there is nothing to send.
+    # If there are no jobs found this interval, then we will let the user know in an email.
     if not jobs:
-        return
+        body = """
+            <h2>No jobs have been found );.</h2>
+            <p>There were no postings that matched your current filters. 
+            Try adjusting your <b>config.py</b> to potentially discover more!</p>
+        """
 
-    body = formatEmail(jobs)
+    # Otherwise, we'll format the jobs for the email.
+    else:
+        body = formatEmail(jobs)
 
     msg = MIMEText(body, "html")
 
