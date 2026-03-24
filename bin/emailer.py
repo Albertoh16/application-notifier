@@ -1,10 +1,11 @@
-import smtplib
+import resend
 from datetime import datetime, timedelta, timezone
-from email.mime.text import MIMEText
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
+
+resend.api_key = os.getenv("RESEND_API_KEY")
 
 # We format our job listing email using html.
 def formatEmail(jobs):
@@ -39,17 +40,14 @@ def sendEmail(jobs, runTime):
     else:
         body = formatEmail(jobs)
 
-    msg = MIMEText(body, "html")
-
     runTimeEDT = runTime - timedelta(hours=4)
     sixHoursAgo = runTimeEDT - timedelta(hours=6)
     timeRange = f"({sixHoursAgo.strftime('%-I:00%p')} - {runTimeEDT.strftime('%-I:00%p')})"
     dateStr = runTimeEDT.strftime("%m/%d/%Y")
 
-    msg["Subject"] = f"{dateStr} {timeRange} Job Postings" 
-    msg["From"] = "jobnotifier.bot@gmail.com"
-    msg["To"] = os.getenv("EMAIL")
-
-    with smtplib.SMTP_SSL(("smtp.gmail.com"), 465) as server:
-        server.login("jobnotifier.bot@gmail.com", os.getenv("PASSWORD"))
-        server.sendmail("jobnotifier.bot@gmail.com", os.getenv("EMAIL"), msg.as_string())
+    resend.Emails.send({
+        "from": "Job Notifier <onboarding@resend.dev>",
+        "to": os.getenv("EMAIL"),
+        "subject": f"{dateStr} {timeRange} Job Postings",
+        "html": body,
+    })
