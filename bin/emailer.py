@@ -18,7 +18,7 @@ def formatEmail(jobs):
         industryStr = f" ({industry})" if industry else ""
         result += f"<h2><b>{job}{industryStr}</b></h2>"
         
-        for title, link, loc, model, _, time in jobs[job]:
+        for title, link, loc, model, _, time, _ in jobs[job]:
             indent = "&nbsp;&nbsp;" * 6
             postTime = (datetime.fromtimestamp(time / 1000, tz=timezone.utc) + timedelta(hours=3)).strftime('%-I:%M%p')
             result += f'<p>{indent}<span style="font-size:16px">{postTime} | </span> <a href="{link}">{title} | {loc} | {model}</a></p>'
