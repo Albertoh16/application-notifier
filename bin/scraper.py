@@ -1,5 +1,5 @@
 from playwright.sync_api import sync_playwright
-from config import FILTERS
+from config import USERS
 from emailer import sendEmail
 from linkFetcher import skipJobrightPage
 from datetime import datetime, timedelta, timezone
