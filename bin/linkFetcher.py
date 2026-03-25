@@ -44,7 +44,6 @@ def loginToJobright(page, email, password):
     print("Waiting for login modal to close...")
     page.wait_for_selector(".ant-modal-content", state="hidden", timeout=15000)
     print(f"Login successful! Current URL: {page.url}")
-    time.sleep(2)
 
 def getApplicationURL(page, jobURL):
     print(f"\nNavigating to job URL: {jobURL}")
@@ -53,7 +52,7 @@ def getApplicationURL(page, jobURL):
 
     # Waits for the page to fully load, we timeout if that fails to happen.
     try:
-        page.wait_for_load_state("networkidle", timeout=10000)
+        page.wait_for_load_state("domcontentloaded", timeout=10000)
     except:
         pass
 
@@ -88,7 +87,7 @@ def getApplicationURL(page, jobURL):
 
         # Listens for a new tab opening at the moment of the click.
         try:
-            with context.expect_page(timeout=8000) as newPageInfo:
+            with context.expect_page(timeout=2000) as newPageInfo:
                 applyButton.click()
 
                 # If a resume popup appeared, we dismiss it to trigger the real link.
@@ -110,7 +109,7 @@ def getApplicationURL(page, jobURL):
         except Exception as e:
             # If no new tab opened at all, we check for a redirect within the same tab.
             print(f"No new tab detected ({e}), checking for same-tab redirect...")
-            time.sleep(3)
+            time.sleep(1)
             realURL = page.url
 
             if realURL != jobURL:
@@ -150,7 +149,6 @@ def skipJobrightPage(jobs: dict) -> dict:
                     print(f"Processing: {title}")
                     realURL = getApplicationURL(page, jobrightURL)
                     fixedJobs[company].append((title, realURL, location, workModel, industry, postDate))
-                    time.sleep(1)
 
             print(f"\nDone! Resolved {sum(len(v) for v in fixedJobs.values())} jobs")
             return fixedJobs
