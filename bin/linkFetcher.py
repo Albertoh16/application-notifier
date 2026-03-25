@@ -1,5 +1,6 @@
 import os
 import time
+import json
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
 
@@ -8,32 +9,66 @@ load_dotenv()
 EMAIL = os.getenv("JOBRIGHT_EMAIL")
 PASSWORD = os.getenv("JOBRIGHT_PASSWORD")
 
+# We store the session cookies in a local file so we can reuse them
+# across runs and skip the login step when the session is still valid.
+SESSION_FILE = "jobright_session.json"
 
-# This opens an invisible chromium-based browser.
+
+# This opens an invisible chromium browser.
 def getBrowser(playwright):
     print("Launching Chromium...")
     return playwright.chromium.launch(headless=True)
 
 
+# Saves the current browser context cookies to a file.
+def saveSession(context):
+    cookies = context.cookies()
+    with open(SESSION_FILE, "w") as f:
+        json.dump(cookies, f)
+    print(f"Session saved ({len(cookies)} cookies).")
+
+
+# Loads cookies from file into the browser context.
+def loadSession(context):
+    if not os.path.exists(SESSION_FILE):
+        return False
+    try:
+        with open(SESSION_FILE, "r") as f:
+            cookies = json.load(f)
+        context.add_cookies(cookies)
+        print(f"Session loaded ({len(cookies)} cookies).")
+        return True
+    except Exception as e:
+        print(f"Failed to load session: {e}")
+        return False
+
+
+# Checks if we're actually logged in by looking for a sign in button.
+def isLoggedIn(page):
+    try:
+        page.goto("https://jobright.ai/", timeout=10000)
+        page.wait_for_load_state("domcontentloaded", timeout=5000)
+        signInVisible = page.locator("text=SIGN IN").is_visible()
+        return not signInVisible
+    except Exception as e:
+        print(f"Session check failed: {e}")
+        return False
+
+
 # This automatically navigates to jobright and logs into the pre-made account.
-def loginToJobright(page, email, password):
+def loginToJobright(page, context, email, password):
     print(f"Navigating to https://jobright.ai/...")
     page.goto("https://jobright.ai/")
-    print(f"Current URL after goto: {page.url}")
 
     # Waits for and clicks the sign in button to open the login popup.
     print("Waiting for sign in button...")
     page.wait_for_selector("text=SIGN IN", timeout=10000)
-    print("Clicking SIGN IN button...")
     page.click("text=SIGN IN")
 
-    # Waits for the popup email field to appear, then it fills in the credentials.
+    # Waits for the popup email field to appear, then fills in the credentials.
     print("Waiting for email input in popup...")
     page.wait_for_selector("input[placeholder='Email']", timeout=10000)
-    print("Filling email...")
     page.fill("input[placeholder='Email']", email)
-
-    print("Filling password...")
     page.fill("input[placeholder='Password']", password)
 
     # Clicks the sign in button inside the popup to submit credentials.
@@ -45,14 +80,17 @@ def loginToJobright(page, email, password):
     page.wait_for_selector(".ant-modal-content", state="hidden", timeout=15000)
     print(f"Login successful! Current URL: {page.url}")
 
+    # Saves the session so we can skip login next time.
+    saveSession(context)
+
+
 def getApplicationURL(page, jobURL):
     print(f"\nNavigating to job URL: {jobURL}")
     context = page.context
     page.goto(jobURL, timeout=15000)
 
-    # Waits for the page to fully load, we timeout if that fails to happen.
     try:
-        page.wait_for_load_state("domcontentloaded", timeout=10000)
+        page.wait_for_load_state("domcontentloaded", timeout=5000)
     except:
         pass
 
@@ -61,7 +99,6 @@ def getApplicationURL(page, jobURL):
     try:
         applyButton = None
 
-        # We try multiple selectors to find the apply button.
         selectors = [
             ".index_applyButton__k3XwL",
             "text=Apply Now",
@@ -85,29 +122,25 @@ def getApplicationURL(page, jobURL):
             print(f"No apply button found on {jobURL}, returning original URL")
             return jobURL
 
-        # Listens for a new tab opening at the moment of the click.
         try:
-            with context.expect_page(timeout=2000) as newPageInfo:
+            with context.expect_page(timeout=4000) as newPageInfo:
                 applyButton.click()
 
-                # If a resume popup appeared, we dismiss it to trigger the real link.
                 try:
-                    page.wait_for_selector("text=Apply Without Customizing", timeout=4000)
+                    page.wait_for_selector("text=Apply Without Customizing", timeout=2000)
                     print("Resume modal appeared, clicking 'Apply Without Customizing'...")
                     page.click("text=Apply Without Customizing")
                 except:
-                    # No popup means the new tab should already be opening from the click.
                     pass
 
             newPage = newPageInfo.value
-            newPage.wait_for_load_state("load", timeout=10000)
+            newPage.wait_for_load_state("domcontentloaded", timeout=5000)
             realURL = newPage.url
             print(f"New tab opened with URL: {realURL}")
             newPage.close()
             return realURL
 
         except Exception as e:
-            # If no new tab opened at all, we check for a redirect within the same tab.
             print(f"No new tab detected ({e}), checking for same-tab redirect...")
             time.sleep(1)
             realURL = page.url
@@ -137,7 +170,14 @@ def skipJobrightPage(jobs: dict) -> dict:
         page = context.new_page()
 
         try:
-            loginToJobright(page, EMAIL, PASSWORD)
+            # Try loading a cached session first to skip login.
+            sessionLoaded = loadSession(context)
+
+            if sessionLoaded and isLoggedIn(page):
+                print("Reusing cached session, skipping login.")
+            else:
+                print("No valid session found, logging in...")
+                loginToJobright(page, context, EMAIL, PASSWORD)
 
             fixedJobs = {}
 
