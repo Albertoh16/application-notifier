@@ -1,6 +1,6 @@
 # Job Posting Emailer
 
-An automated service that scrapes recent software engineering internship listings from [Jobright.ai](https://jobright.ai), filters them based on each user's personal preferences, and delivers a personalized email digest every few hours — with one click to open every application at once.
+An automated service that scrapes recent software engineering internship listings from [Jobright.ai](https://jobright.ai), filters them based on each user's personal preferences, and delivers a personalized email digest every few hours, with one click to open every application at once.
 
 ---
 
