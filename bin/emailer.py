@@ -25,7 +25,7 @@ def formatEmail(jobs):
             &#128279; Open All {len(allUrls)} Application{'s' if len(allUrls) != 1 else ''}
         </button>
         <p style="color:#6B7280; font-size:13px; margin-top:8px;">
-            Your browser may ask for permission to open multiple tabs &mdash; click <b>Allow</b> when prompted.
+            Your browser may ask for permission to open multiple tabs; click <b>Allow</b> when prompted.
         </p>
     </div>
     """
