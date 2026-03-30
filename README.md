@@ -35,19 +35,19 @@ If no listings match your filters in a given interval, you'll receive a short em
 
 The service runs on a scheduled interval and executes the following pipeline:
 
-### 1. Scraping — `scraper.py`
+### 1. Scraping: `scraper.py`
 A headless Chromium browser (via **Playwright**) navigates to Jobright's public SWE internship listing page. It intercepts network responses to capture job data as it loads, then scrolls the listing table to paginate and collect additional results. Jobs posted outside the last 13 hours are discarded immediately.
 
-### 2. Authentication — `linkFetcher.py`
+### 2. Authentication: `linkFetcher.py`
 The scraper opens a second browser tab and logs into Jobright using stored credentials. Sessions are cached to a local file so repeat logins are avoided. Once authenticated, each job's Jobright URL is visited and the real external application URL is resolved by clicking the "Apply" button and capturing where it redirects.
 
-### 3. User Configuration — `config.py`
+### 3. User Configuration: `config.py`
 User emails and their filter preferences are fetched from a **Google Sheet** via a **Google Apps Script** web endpoint. Each row maps to one recipient. Filters are parsed into structured sets used to match against job titles, qualifications, and industries.
 
-### 4. Filtering — `scraper.py`
+### 4. Filtering: `scraper.py`
 For each user, the full resolved job list is run through their filter set. Jobs must match all active include filters (position, role, specialization, qualification, industry) and must not match any exclude filters. Each user gets a completely independent filtered result.
 
-### 5. Emailing — `emailer.py`
+### 5. Emailing: `emailer.py`
 Filtered results are formatted into an HTML email and sent via **Resend**. All users are processed concurrently using `asyncio`. The email includes an "Open All" button, company-grouped listings with timestamps, and direct links to each application.
 
 ---
