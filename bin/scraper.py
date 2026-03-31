@@ -95,7 +95,7 @@ with sync_playwright() as p:
     
     if sessionLoaded and isLoggedIn(jobrightPage):
         print("Reusing cached session, skipping login.")
-
+        
     else:
         print("No valid session, logging in...")
         loginToJobright(jobrightPage, context)

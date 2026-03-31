@@ -27,6 +27,7 @@ def rowToFilters(row):
         "exclude qualification":  parseCell(row[8]),
         "industry":               parseCell(row[9]),
         "exclude industry":       parseCell(row[10]),
+        "intervals":              parseCell(row[11]),
     }
 
 # Fetches all user rows from the Google Sheet.
