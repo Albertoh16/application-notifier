@@ -4,11 +4,14 @@ from emailer import sendEmail
 from linkFetcher import loadSession, isLoggedIn, loginToJobright, getApplicationURL
 from filter import FilterJobs
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 import asyncio
 
-initialTime = datetime.now(tz=timezone.utc)
-initialTimeEDT = initialTime - timedelta(hours=4)
-currentHour = initialTimeEDT.strftime("%H:00")
+ET = ZoneInfo("America/New_York")
+
+initialTime    = datetime.now(tz=timezone.utc)
+initialTimeEDT = initialTime.astimezone(ET)
+currentHour    = initialTimeEDT.strftime("%H:00")
 
 if not USERS:
     print("No users found in sheet, exiting.")
@@ -29,13 +32,13 @@ print(f"[{currentHour}] {len(activeUsers)} user(s) scheduled: {list(activeUsers.
 
 # We take the user's list of times and we'll display times between the user's decided times to get emails.
 def getPreviousIntervalTime(intervals: set, currentTime: datetime) -> datetime:
-    currentTimeEDT = currentTime - timedelta(hours=4)
+    currentTimeET = currentTime.astimezone(ET)
 
     if not intervals or len(intervals) == 1:
         return currentTime - timedelta(hours=24)
 
     sortedTimes = sorted(intervals, key=lambda t: int(t.split(":")[0]))
-    currentHourStr = currentTimeEDT.strftime("%H:00")
+    currentHourStr = currentTimeET.strftime("%H:00")
 
     if currentHourStr not in sortedTimes:
         return currentTime - timedelta(hours=24)
@@ -46,12 +49,12 @@ def getPreviousIntervalTime(intervals: set, currentTime: datetime) -> datetime:
     currHour = int(currentHourStr.split(":")[0])
 
     if prevHour < currHour:
-        windowStart = currentTimeEDT.replace(hour=prevHour, minute=0, second=0, microsecond=0)
+        windowStart = currentTimeET.replace(hour=prevHour, minute=0, second=0, microsecond=0)
     else:
-        windowStart = (currentTimeEDT - timedelta(days=1)).replace(hour=prevHour, minute=0, second=0, microsecond=0)
+        windowStart = (currentTimeET - timedelta(days=1)).replace(hour=prevHour, minute=0, second=0, microsecond=0)
 
-    # Convert back to UTC for timestamp comparisons
-    return windowStart + timedelta(hours=4)
+    # Convert back to UTC for timestamp comparisons.
+    return windowStart.astimezone(timezone.utc)
 
 # Single browser runs everything.
 with sync_playwright() as p:
