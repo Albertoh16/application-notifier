@@ -6,18 +6,58 @@ from filter import FilterJobs
 from datetime import datetime, timedelta, timezone
 import asyncio
 
-# We convert the millisecond timestamp to a UTC date and
-# time, then we only accept posts from the last 13 hours.
-def withinTimeLimit(time):
-    posted = datetime.fromtimestamp(time / 1000)
-    now    = datetime.now()
-    return (now - posted) <= timedelta(hours=13)
-
 initialTime = datetime.now(tz=timezone.utc)
+currentHour = initialTime.strftime("%H:00")
 
 if not USERS:
     print("No users found in sheet, exiting.")
     exit()
+
+# Filters down to only users who are scheduled for this hour.
+# Users with no intervals set receive emails every run.
+activeUsers = {
+    email: filters for email, filters in USERS.items()
+    if not filters.get("intervals") or currentHour in filters.get("intervals", set())
+}
+
+if not activeUsers:
+    print(f"No users scheduled for {currentHour}, exiting.")
+    exit()
+
+print(f"[{currentHour}] {len(activeUsers)} user(s) scheduled: {list(activeUsers.keys())}")
+
+# We take the user's list of times and we'll display times between the user's decided times to get emails.
+def getPreviousIntervalTime(intervals: set, currentTime: datetime) -> datetime:
+    # If there are no times set, then we scrape last 24 hours
+    if not intervals:
+        return currentTime - timedelta(hours=24)
+
+    # If we only have one time set, then scrape last 24 hours before it.
+    if len(intervals) == 1:
+        return currentTime - timedelta(hours=24)
+
+    # Sorts the intervals as actual times.
+    sortedTimes = sorted(intervals, key=lambda t: int(t.split(":")[0]))
+
+    currentHourStr = currentTime.strftime("%H:00")
+
+    # Finds the index of the current hour in the sorted list
+    if currentHourStr not in sortedTimes:
+        return currentTime - timedelta(hours=24)
+
+    idx = sortedTimes.index(currentHourStr)
+
+    # The previous interval is the one before the current in the sorted list.
+    prevHourStr = sortedTimes[idx - 1] 
+    prevHour = int(prevHourStr.split(":")[0])
+    currHour = int(currentHourStr.split(":")[0])
+
+    if prevHour < currHour:
+        windowStart = currentTime.replace(hour=prevHour, minute=0, second=0, microsecond=0)
+    else:
+        windowStart = (currentTime - timedelta(days=1)).replace(hour=prevHour, minute=0, second=0, microsecond=0)
+
+    return windowStart
 
 # Single browser runs everything.
 with sync_playwright() as p:
@@ -104,13 +144,9 @@ with sync_playwright() as p:
     scrapePage.close()
     print("Scraping tab closed.")
 
-    # Collects all recent jobs.
-    recentJobs = [job for job in jobs if withinTimeLimit(job["postedDate"])]
-    print(f"Found {len(recentJobs)} jobs within time limit out of {len(jobs)} total.")
-
     allNeededJobs = {}
 
-    for job in recentJobs:
+    for job in jobs:  
         if job["company"] not in allNeededJobs:
             allNeededJobs[job["company"]] = []
 
@@ -129,6 +165,7 @@ with sync_playwright() as p:
 
     for company, listings in allNeededJobs.items():
         print(f"\nProcessing company: {company} ({len(listings)} listings)")
+
         resolvedJobs[company] = []
 
         for (title, jobrightURL, location, workModel, industry, postDate, qualifications) in listings:
@@ -139,12 +176,36 @@ with sync_playwright() as p:
     browser.close()
     print("Browser closed.")
 
+windowStarts = {
+    email: getPreviousIntervalTime(filters.get("intervals", set()), initialTime)
+    for email, filters in activeUsers.items()
+}
+
+earliestStart = min(windowStarts.values())
+
+print(f"Scraping window: {earliestStart} -> {initialTime}")
+
 # Filters and emails a single user, runs concurrently with other users.
 async def processUser(email, filters, resolvedJobs, initialTime):
-    print(f"\n[{email}] Running ML filter...")
-    userJobs = await asyncio.to_thread(FilterJobs, filters, resolvedJobs)
+    windowStart = windowStarts[email]
 
+    print(f"\n[{email}] Window: {windowStart} → {initialTime}")
+
+    # Trims the resolvedJobs to this user's window.
+    userResolvedJobs = {
+        company: [
+            job for job in listings
+            if datetime.fromtimestamp(job[5] / 1000, tz=timezone.utc) >= windowStart
+        ]
+
+        for company, listings in resolvedJobs.items()
+    }
+
+    userResolvedJobs = {k: v for k, v in userResolvedJobs.items() if v}
+
+    userJobs = await asyncio.to_thread(FilterJobs, filters, userResolvedJobs)
     totalJobs = sum(len(v) for v in userJobs.values())
+
     print(f"[{email}] Sending {totalJobs} jobs.")
 
     await asyncio.to_thread(sendEmail, userJobs, initialTime, email)
@@ -153,9 +214,8 @@ async def processUser(email, filters, resolvedJobs, initialTime):
 async def processAllUsers(resolvedJobs, initialTime):
     tasks = [
         processUser(email, filters, resolvedJobs, initialTime)
-        for email, filters in USERS.items()
+        for email, filters in activeUsers.items() 
     ]
-
     await asyncio.gather(*tasks)
 
 asyncio.run(processAllUsers(resolvedJobs, initialTime))
