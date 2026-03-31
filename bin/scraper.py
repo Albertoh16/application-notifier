@@ -7,7 +7,8 @@ from datetime import datetime, timedelta, timezone
 import asyncio
 
 initialTime = datetime.now(tz=timezone.utc)
-currentHour = initialTime.strftime("%H:00")
+initialTimeEDT = initialTime - timedelta(hours=4)
+currentHour = initialTimeEDT.strftime("%H:00")
 
 if not USERS:
     print("No users found in sheet, exiting.")
@@ -28,36 +29,29 @@ print(f"[{currentHour}] {len(activeUsers)} user(s) scheduled: {list(activeUsers.
 
 # We take the user's list of times and we'll display times between the user's decided times to get emails.
 def getPreviousIntervalTime(intervals: set, currentTime: datetime) -> datetime:
-    # If there are no times set, then we scrape last 24 hours
-    if not intervals:
+    currentTimeEDT = currentTime - timedelta(hours=4)
+
+    if not intervals or len(intervals) == 1:
         return currentTime - timedelta(hours=24)
 
-    # If we only have one time set, then scrape last 24 hours before it.
-    if len(intervals) == 1:
-        return currentTime - timedelta(hours=24)
-
-    # Sorts the intervals as actual times.
     sortedTimes = sorted(intervals, key=lambda t: int(t.split(":")[0]))
+    currentHourStr = currentTimeEDT.strftime("%H:00")
 
-    currentHourStr = currentTime.strftime("%H:00")
-
-    # Finds the index of the current hour in the sorted list
     if currentHourStr not in sortedTimes:
         return currentTime - timedelta(hours=24)
 
     idx = sortedTimes.index(currentHourStr)
-
-    # The previous interval is the one before the current in the sorted list.
-    prevHourStr = sortedTimes[idx - 1] 
+    prevHourStr = sortedTimes[idx - 1]
     prevHour = int(prevHourStr.split(":")[0])
     currHour = int(currentHourStr.split(":")[0])
 
     if prevHour < currHour:
-        windowStart = currentTime.replace(hour=prevHour, minute=0, second=0, microsecond=0)
+        windowStart = currentTimeEDT.replace(hour=prevHour, minute=0, second=0, microsecond=0)
     else:
-        windowStart = (currentTime - timedelta(days=1)).replace(hour=prevHour, minute=0, second=0, microsecond=0)
+        windowStart = (currentTimeEDT - timedelta(days=1)).replace(hour=prevHour, minute=0, second=0, microsecond=0)
 
-    return windowStart
+    # Convert back to UTC for timestamp comparisons
+    return windowStart + timedelta(hours=4)
 
 # Single browser runs everything.
 with sync_playwright() as p:
