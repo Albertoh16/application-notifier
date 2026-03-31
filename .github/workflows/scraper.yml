@@ -20,7 +20,9 @@ jobs:
         with:
           python-version: '3.11'
 
-      # We'll cache our dependencies to stop our action from taking too long to complete.
+      # ----- Caching -------------------------------------------------------------------
+
+      # Caches our dependencies to stop our action from taking too long to complete.
       - name: Cache pip dependencies
         uses: actions/cache@v3
         with:
@@ -29,27 +31,34 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      # We also cache our browsers so our actions run faster.
+      # Caches our browsers so our actions run faster.
       - name: Cache Playwright browsers
         uses: actions/cache@v3
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('**/requirements.txt') }}
 
-      # We cache the Jobright session to skip login on repeat runs.
+      # Caches the Jobright session to skip login on repeated runs.
       - name: Cache Jobright session
         uses: actions/cache@v3
         with:
           path: bin/jobright_session.json
           key: jobright-session
 
+      # Caches the HuggingFace model so it's only downloaded on the first run.
+      - name: Cache HuggingFace model
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/huggingface
+          key: hf-minilm-l6-v2
+
       - name: Install dependencies
         run: |
-          pip install playwright python-dotenv resend
+          pip install playwright python-dotenv resend sentence-transformers torch transformers
           playwright install-deps chromium
-          if [ ! -d ~/.cache/ms-playwright ]; then
-            playwright install chromium
-          fi
+          playwright install chromium
+
+      # ----- Scripting ------------------------------------------------------------------
 
       - name: Run scraper
         env:
@@ -57,4 +66,5 @@ jobs:
           JOBRIGHT_EMAIL: ${{ secrets.JOBRIGHT_EMAIL }}
           JOBRIGHT_PASSWORD: ${{ secrets.JOBRIGHT_PASSWORD }}
           APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          CUDA_VISIBLE_DEVICES: ""
         run: python3 bin/scraper.py
