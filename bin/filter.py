@@ -1,18 +1,23 @@
-from sentence_transformers import SentenceTransformer, util
+from sentence_transformers import util
 import torch
 
-# We load the module once to be reused across all users in a single run.
-print("[mlFilter] Loading sentence-transformer model...")
+# Model is loaded lazily — only when FilterJobs is first called.
+# This means importing filter.py (e.g. in Debug.py with SKIP_ML=True) has no cost.
+MODEL = None
 
-MODEL = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+def getModel():
+    global MODEL
+    if MODEL is None:
+        from sentence_transformers import SentenceTransformer
+        print("[mlFilter] Loading sentence-transformer model...")
+        MODEL = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+        print("[mlFilter] Model loaded.")
+    return MODEL
 
-print("[mlFilter] Model loaded.")
-
-# A job must score >= INCLUDE_THRESHOLD against the user's include intent to pass.
-INCLUDE_THRESHOLD = 0.25
-
-# A job must score >= EXCLUDE_THRESHOLD against any exclude keyword to be blocked.
-EXCLUDE_THRESHOLD = 0.45
+# More Permissive Inclusion
+INCLUDE_THRESHOLD = 0.15
+# Less Aggressive Exclusion
+EXCLUDE_THRESHOLD = 0.6
 
 # Concatenates job fields into a single string for embedding.
 def buildJobText(title: str, qualifications: str, industry: list) -> str:
@@ -66,14 +71,17 @@ def FilterJobs(filters: dict, resolvedJobs: dict) -> dict:
     if not resolvedJobs:
         return {}
 
+    # Load the model only now that we actually need it.
+    model = getModel()
+
     # We build query embeddings for our inclusion and exclusion filterings.
     includeQuery = buildIncludeQuery(filters)
     excludeQueries = buildExcludeQueries(filters)
 
     # We convert our flattened filters into embeddings in order to later
     # compare similarity scoring with the list of jobs that will be sent in. 
-    includeEmbedding = MODEL.encode(includeQuery, convert_to_tensor=True) if includeQuery else None
-    excludeEmbeddings = MODEL.encode(excludeQueries, convert_to_tensor=True) if excludeQueries else None
+    includeEmbedding = model.encode(includeQuery, convert_to_tensor=True) if includeQuery else None
+    excludeEmbeddings = model.encode(excludeQueries, convert_to_tensor=True) if excludeQueries else None
 
     # Flattens all jobs and builds their text blobs
     # We batch-encode everything at once for speed.
@@ -96,7 +104,7 @@ def FilterJobs(filters: dict, resolvedJobs: dict) -> dict:
 
     # We then create an embedding for job postings for comparisons
     # with the user's inclusion/exclusion filtering embeddings. 
-    jobEmbeddings = MODEL.encode(jobTexts, convert_to_tensor=True, batch_size=64)
+    jobEmbeddings = model.encode(jobTexts, convert_to_tensor=True, batch_size=64)
 
     print(f"[mlFilter] Scoring jobs...")
 
