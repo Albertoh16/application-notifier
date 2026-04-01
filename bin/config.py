@@ -18,10 +18,14 @@ def parseCell(value):
         return set()
     return {item.strip() for item in str(value).split(",") if item.strip()}
 
-# Google Sheets stores time-only cells as Date objects.
+# Google Sheets stores time-only cells as fractional floats or Date objects.
 def parseIntervals(value):
-    if not value:
+    if not value and value != 0:
         return set()
+    # Sheets time-only cells arrive as a float fraction of a day.
+    if isinstance(value, float) and 0 < value < 1:
+        hour = round(value * 24)
+        return {f"{hour:02d}:00"}
     result = set()
     for item in str(value).split(","):
         item = item.strip()
@@ -30,7 +34,7 @@ def parseIntervals(value):
         # Already in HH:MM format
         if len(item) == 5 and item[2] == ":":
             result.add(item)
-        # Looks like a serialized date/datetime from Sheets
+        # Serialized date/datetime from Sheets
         elif "T" in item or "1899" in item or "1900" in item:
             try:
                 from datetime import datetime as dt
@@ -55,7 +59,7 @@ def rowToFilters(row):
         "exclude qualification":  parseCell(row[8]),
         "industry":               parseCell(row[9]),
         "exclude industry":       parseCell(row[10]),
-        "intervals":              parseIntervals(row[11]),  
+        "intervals":              parseIntervals(row[11]),
     }
 
 # Fetches all user rows from the Google Sheet.
@@ -80,6 +84,7 @@ def fetchAllUsers():
             if email:
                 users[email] = rowToFilters(row)
                 print(f"[config] Loaded filters for {email}")
+                print(f"[config DEBUG] {email} intervals raw={row[11]!r} type={type(row[11]).__name__} parsed={users[email]['intervals']!r}")
 
         print(f"[config] Total users loaded: {len(users)}")
         return users
