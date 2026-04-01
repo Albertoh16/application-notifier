@@ -15,9 +15,9 @@ def getModel():
     return MODEL
 
 # More Permissive Inclusion
-INCLUDE_THRESHOLD = 0.15
+INCLUDE_THRESHOLD = 0.25
 # Less Aggressive Exclusion
-EXCLUDE_THRESHOLD = 0.6
+EXCLUDE_THRESHOLD = 0.55
 
 # Concatenates job fields into a single string for embedding.
 def buildJobText(title: str, qualifications: str, industry: list) -> str:
