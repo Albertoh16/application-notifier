@@ -113,7 +113,7 @@ with sync_playwright() as p:
     # Scrolls to load more rows, stopping early if no new jobs appear.
     tableBody = scrapePage.query_selector(".index_bodyViewport__3xQLm")
 
-    for _ in range(10):
+    for _ in range(30):
         prevCount = len(seenIds)
         tableBody.evaluate("el => el.scrollTop += 3000")
         scrapePage.wait_for_timeout(800)
