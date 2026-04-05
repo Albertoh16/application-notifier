@@ -10,23 +10,27 @@ ET = ZoneInfo("America/New_York")
 
 initialTime = datetime.now(tz=timezone.utc)
 currentHour = initialTime.astimezone(ET).strftime("%H:00")
+currentDay  = initialTime.astimezone(ET).strftime("%A")
 
 if not USERS:
     print("No users found in sheet, exiting.")
     exit()
 
-# Filters down to only users who are scheduled for this hour.
-# Users with no intervals set receive emails every run.
+# Filters down to only users scheduled for this hour and day.
+# Users with no intervals or no days set receive emails every run.
 activeUsers = {
     email: filters for email, filters in USERS.items()
-    if not filters.get("intervals") or currentHour in filters.get("intervals", set())
+    if (not filters.get("intervals") or currentHour in filters.get("intervals", set()))
+    and (not filters.get("days") or currentDay in filters.get("days", set()))
 }
 
+# If there are no users scheduled for the current day and time, we stop the
+# action completely.
 if not activeUsers:
-    print(f"No users scheduled for {currentHour}, exiting.")
+    print(f"No users scheduled for {currentDay} {currentHour}, exiting.")
     exit()
 
-print(f"[{currentHour}] {len(activeUsers)} user(s) scheduled: {list(activeUsers.keys())}")
+print(f"[{currentDay} {currentHour}] {len(activeUsers)} user(s) scheduled: {list(activeUsers.keys())}")
 
 # We take the user's list of times and we'll display times between the user's decided times to get emails.
 def getPreviousIntervalTime(intervals: set, currentTime: datetime) -> datetime:
@@ -110,8 +114,10 @@ with sync_playwright() as p:
 
     for job in data["props"]["pageProps"]["initialJobs"]:
         jobId = job["id"]
+
         if jobId not in seenIds:
             seenIds.add(jobId)
+            
             jobs.append({
                 "title":          job["title"],
                 "company":        job["company"],

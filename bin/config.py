@@ -58,6 +58,12 @@ def parseIntervals(value):
 
     return result
 
+# Parses a comma-separated days string into a set of day names.
+def parseDays(value):
+    if not value or not str(value).strip():
+        return set()
+    return {item.strip() for item in str(value).split(",") if item.strip()}
+
 # Converts a sheet row into a filters dict matching the scraper's expected format.
 def rowToFilters(row):
     return {
@@ -72,6 +78,7 @@ def rowToFilters(row):
         "industry":               parseCell(row[9]),
         "exclude industry":       parseCell(row[10]),
         "intervals":              parseIntervals(row[11]),
+        "days":                   parseDays(row[12]),
     }
 
 # Fetches all user rows from the Google Sheet.

@@ -229,6 +229,35 @@
       color: var(--accent); min-height: 1.2em; margin-top: 0.3rem;
     }
 
+    /* Day picker */
+    .day-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 0.4rem;
+      margin-bottom: 0.5rem;
+    }
+    @media (max-width: 500px) { .day-grid { grid-template-columns: repeat(4, 1fr); } }
+    .day-chip input[type="checkbox"] { display: none; }
+    .day-chip label {
+      display: flex; align-items: center; justify-content: center;
+      padding: 0.4rem 0.2rem;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 7px; cursor: pointer;
+      font-family: 'DM Mono', monospace; font-size: 0.7rem;
+      color: var(--muted); transition: all 0.15s;
+      user-select: none; text-align: center;
+    }
+    .day-chip label:hover { border-color: var(--accent); color: var(--text); }
+    .day-chip input[type="checkbox"]:checked + label {
+      background: var(--accent-dim); border-color: var(--accent);
+      color: var(--accent);
+    }
+    .selected-days-hint {
+      font-family: 'DM Mono', monospace; font-size: 0.7rem;
+      color: var(--accent); min-height: 1.2em; margin-top: 0.3rem;
+      margin-bottom: 1rem;
+    }
+
     /* Collapsible category sections */
     .category-block { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 0.65rem; overflow: hidden; }
     .category-header {
@@ -497,6 +526,14 @@
           <span class="chevron">▼</span>
         </div>
         <div class="category-body">
+          <div class="section-label" style="margin-top:0">Days</div>
+          <div class="time-picker-actions">
+            <button class="btn-tiny" onclick="selectAllDays()">Select all</button>
+            <button class="btn-tiny" onclick="clearAllDays()">Clear</button>
+          </div>
+          <div class="day-grid" id="day-grid"></div>
+          <div class="selected-days-hint" id="days-hint">No days selected — you won't receive emails.</div>
+          <div class="section-label">Times</div>
           <div class="time-picker-actions">
             <button class="btn-tiny" onclick="selectAllTimes()">Select all</button>
             <button class="btn-tiny" onclick="clearAllTimes()">Clear</button>
@@ -730,10 +767,68 @@
     updateTimesHint();
   }
 
+  // ── Day picker ──────────────────────────────────────────────────────────────
+  const ALL_DAYS = [
+    { value: 'Monday',    label: 'Mon' },
+    { value: 'Tuesday',   label: 'Tue' },
+    { value: 'Wednesday', label: 'Wed' },
+    { value: 'Thursday',  label: 'Thu' },
+    { value: 'Friday',    label: 'Fri' },
+    { value: 'Saturday',  label: 'Sat' },
+    { value: 'Sunday',    label: 'Sun' },
+  ];
+
+  const dayGrid = document.getElementById('day-grid');
+  ALL_DAYS.forEach(({ value, label }) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'day-chip';
+    wrap.innerHTML = `<input type="checkbox" id="d-${value}" value="${value}"><label for="d-${value}">${label}</label>`;
+    dayGrid.appendChild(wrap);
+  });
+
+  function getSelectedDays() {
+    return ALL_DAYS.map(d => d.value).filter(v => document.getElementById(`d-${v}`)?.checked);
+  }
+
+  function setSelectedDays(daysStr) {
+    ALL_DAYS.forEach(d => { document.getElementById(`d-${d.value}`).checked = false; });
+    if (!daysStr) return updateDaysHint();
+    daysStr.split(',').map(s => s.trim()).forEach(v => {
+      const el = document.getElementById(`d-${v}`);
+      if (el) el.checked = true;
+    });
+    updateDaysHint();
+  }
+
+  function updateDaysHint() {
+    const selected = getSelectedDays();
+    const hint = document.getElementById('days-hint');
+    if (!selected.length) {
+      hint.textContent = "No days selected — you won't receive emails.";
+      hint.style.color = 'var(--muted)';
+    } else {
+      hint.textContent = `Active on: ${selected.map(v => ALL_DAYS.find(d => d.value === v).label).join(', ')}`;
+      hint.style.color = 'var(--accent)';
+    }
+  }
+
+  dayGrid.addEventListener('change', updateDaysHint);
+
+  function selectAllDays() {
+    ALL_DAYS.forEach(d => { document.getElementById(`d-${d.value}`).checked = true; });
+    updateDaysHint();
+  }
+
+  function clearAllDays() {
+    ALL_DAYS.forEach(d => { document.getElementById(`d-${d.value}`).checked = false; });
+    updateDaysHint();
+  }
+
   function getFormData() {
     const data = { email: currentEmail };
     FIELDS.forEach(f => data[f] = [...tagStore[f]].join(', '));
     data['intervals'] = getSelectedTimes().join(', ');
+    data['days'] = getSelectedDays().join(', ');
     return data;
   }
 
@@ -761,6 +856,7 @@
       updateCountPill(f);
     });
     setSelectedTimes(normalizeIntervalsValue(row[11]));
+    setSelectedDays(row[12] || '');
   }
 
   function clearForm() {
@@ -770,6 +866,7 @@
       updateCountPill(f);
     });
     setSelectedTimes('');
+    setSelectedDays('');
   }
 
   function setLoading(on) {
