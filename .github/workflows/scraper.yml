@@ -1,6 +1,6 @@
 name: Job Scraper
 
-# We'll run our scraper 4 times a day in 6 hour intervals.
+# We'll run our scraper every hour of the day.
 on:
   workflow_dispatch:
   schedule:
@@ -24,7 +24,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          key: ${{ runner.os }}-pip-v2-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
@@ -34,13 +34,6 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('**/requirements.txt') }}
-
-      # Caches the Jobright session to skip login on repeated runs.
-      - name: Cache Jobright session
-        uses: actions/cache@v3
-        with:
-          path: bin/jobright_session.json
-          key: jobright-session
 
       # Caches the HuggingFace model so it's only downloaded on the first run.
       - name: Cache HuggingFace model

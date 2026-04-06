@@ -136,7 +136,7 @@ def fetchAllUsers():
             if email:
                 users[email] = rowToFilters(row)
                 print(f"[config] Loaded filters for {email}")
-                print(f"[config DEBUG] {email} intervals raw={row[11]!r} type={type(row[11]).__name__} parsed={users[email]['intervals']!r}")
+                print(f"[config DEBUG] {email} intervals raw={row[9]!r} type={type(row[9]).__name__} parsed={users[email]['intervals']!r}")
 
         print(f"[config] Total users loaded: {len(users)}")
 
