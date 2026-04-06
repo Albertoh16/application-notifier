@@ -42,9 +42,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install playwright python-dotenv resend sentence-transformers torch transformers jobspy
-          playwright install-deps chromium
-          playwright install chromium
+          python -m pip install playwright python-dotenv resend sentence-transformers torch transformers jobspy
+          python -m playwright install-deps chromium
+          python -m playwright install chromium
 
       # ----- Scripting ------------------------------------------------------------------
 
