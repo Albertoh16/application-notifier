@@ -58,27 +58,58 @@ def parseIntervals(value):
 
     return result
 
-# Parses a comma-separated days string into a set of day names.
+# Parses days string into a set of day names.
 def parseDays(value):
     if not value or not str(value).strip():
         return set()
+    
     return {item.strip() for item in str(value).split(",") if item.strip()}
 
-# Converts a sheet row into a filters dict matching the scraper's expected format.
+# Parses country field into a single plain text country name.
+def parseCountry(value):
+    if not value or not str(value).strip():
+        return ""
+    return str(value).strip()
+
+# Parses the work-model field.
+def parseWorkModel(value):
+    if not value or not str(value).strip():
+        return set()
+    
+    valid = {"remote", "hybrid", "on-site"}
+    result = set()
+
+    for item in str(value).split(","):
+        item = item.strip().lower()
+
+        if item in valid:
+            result.add(item.title().replace("On-Site", "On-site"))
+
+    return result
+
+# Parses the job titles field.
+def parseJobTitles(value):
+    if not value or not str(value).strip():
+        return set()
+    
+    return {item.strip() for item in str(value).split(",") if item.strip()}
+
+# Converts the sheet row into a filters map matching the scraper's expected format.
 def rowToFilters(row):
     return {
         "position":               parseCell(row[1]),
         "exclude position":       parseCell(row[2]),
-        "role":                   parseCell(row[3]),
-        "exclude role":           parseCell(row[4]),
-        "specialization":         parseCell(row[5]),
-        "exclude specialization": parseCell(row[6]),
-        "qualification":          parseCell(row[7]),
-        "exclude qualification":  parseCell(row[8]),
-        "industry":               parseCell(row[9]),
-        "exclude industry":       parseCell(row[10]),
-        "intervals":              parseIntervals(row[11]),
-        "days":                   parseDays(row[12]),
+        "specialization":         parseCell(row[3]),
+        "exclude specialization": parseCell(row[4]),
+        "qualification":          parseCell(row[5]),
+        "exclude qualification":  parseCell(row[6]),
+        "industry":               parseCell(row[7]),
+        "exclude industry":       parseCell(row[8]),
+        "intervals":              parseIntervals(row[9]),
+        "days":                   parseDays(row[10]),
+        "country":                parseCountry(row[11]) if len(row) > 11 else "",
+        "work-model":             parseWorkModel(row[12]) if len(row) > 12 else set(),
+        "job-titles":             parseJobTitles(row[13]) if len(row) > 13 else set(),
     }
 
 # Fetches all user rows from the Google Sheet.

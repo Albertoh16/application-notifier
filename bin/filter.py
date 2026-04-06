@@ -29,9 +29,8 @@ def buildJobText(title: str, qualifications: str, industry: list) -> str:
     return " | ".join(parts)
 
 # Collapses all inclusion filter keywords into one natural language query.
-# Returns None if no include filters are set, meaning the user wants everything.
 def buildIncludeQuery(filters: dict) -> str | None:
-    keys = ["position", "role", "specialization", "qualification", "industry"]
+    keys = ["job-titles", "position", "specialization", "qualification", "industry"]
     terms = []
 
     for key in keys:
@@ -54,10 +53,9 @@ def excludeCheck(title: str, qualifications: str, industry: list, filters: dict)
     industryStr = ", ".join(industry) if industry else ""
     qualStr = qualifications or ""
 
-    # We'll get our positions, roles, specializations to check it against the job titles
+    # We'll get our positions and specializations to check against the job title.
     titleKeywords = (
         filters.get("exclude position", set()) |
-        filters.get("exclude role", set()) |
         filters.get("exclude specialization", set())
     )
 
@@ -80,6 +78,22 @@ def excludeCheck(title: str, qualifications: str, industry: list, filters: dict)
         return f"industry:'{matched}'"
 
     return None
+
+# Checks if a job's location contains the user's chosen country.
+# Empty country filter means we accept everything.
+def countryCheck(location: str, filters: dict) -> bool:
+    country = filters.get("country", "")
+    if not country:
+        return True
+    return country.lower() in location.lower()
+
+# Checks if a job's work model matches any of the user's chosen models.
+# Empty work-model filter means we accept everything.
+def workModelCheck(workModel: str, filters: dict) -> bool:
+    allowed = filters.get("work-model", set())
+    if not allowed:
+        return True
+    return workModel.lower() in {m.lower() for m in allowed}
 
 # Uses the ML embeddings for inclusion scoring and uses substring matching for exclusions.
 def FilterJobs(filters: dict, resolvedJobs: dict) -> dict:
@@ -114,6 +128,16 @@ def FilterJobs(filters: dict, resolvedJobs: dict) -> dict:
     for i, job in enumerate(flatJobs):
         company, title, url, location, workModel, industry, postDate, qualifications = job
         jobEmb = jobEmbeddings[i]
+
+        # Country filter.
+        if not countryCheck(location, filters):
+            print(f"[EXCLUDED] '{title}', location '{location}' not in country '{filters.get('country')}'")
+            continue
+
+        # Work-model filter.
+        if not workModelCheck(workModel, filters):
+            print(f"[EXCLUDED] '{title}', work model '{workModel}' not in {filters.get('work-model')}")
+            continue
 
         # Substring exclusion across title, qualifications, and industry.
         excludeMatch = excludeCheck(title, qualifications, industry, filters)

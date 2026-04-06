@@ -189,6 +189,38 @@
 
     @media (max-width: 500px) { .field-pair { grid-template-columns: 1fr; } }
 
+    /* Country autocomplete */
+    .country-wrap { position: relative; margin-bottom: 0.65rem; }
+    .country-wrap input[type="text"] { width: 100%; }
+    .country-dropdown {
+      position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 50;
+      background: var(--surface); border: 1px solid var(--accent);
+      border-radius: 7px; max-height: 200px; overflow-y: auto;
+      box-shadow: 0 8px 24px #00000055; display: none;
+    }
+    .country-dropdown.open { display: block; }
+    .country-option {
+      padding: 0.5rem 0.8rem; font-size: 0.85rem; cursor: pointer;
+      transition: background 0.1s; font-family: 'DM Sans', sans-serif;
+    }
+    .country-option:hover, .country-option.active { background: var(--accent-dim); color: var(--accent); }
+
+    /* Work model chips */
+    .workmodel-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+    .wm-chip input[type="checkbox"] { display: none; }
+    .wm-chip label {
+      display: flex; align-items: center; justify-content: center;
+      padding: 0.4rem 0.9rem;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 7px; cursor: pointer;
+      font-family: 'DM Mono', monospace; font-size: 0.72rem;
+      color: var(--muted); transition: all 0.15s; user-select: none;
+    }
+    .wm-chip label:hover { border-color: var(--accent); color: var(--text); }
+    .wm-chip input[type="checkbox"]:checked + label {
+      background: var(--accent-dim); border-color: var(--accent); color: var(--accent);
+    }
+
     /* Time picker */
     .time-grid {
       display: grid;
@@ -260,6 +292,8 @@
 
     /* Collapsible category sections */
     .category-block { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 0.65rem; overflow: hidden; }
+    #cat-country { overflow: visible; }
+    #cat-country .category-header { border-radius: var(--radius) var(--radius) 0 0; }
     .category-header {
       display: flex; align-items: center; justify-content: space-between;
       padding: 0.75rem 1rem; cursor: pointer; user-select: none;
@@ -369,6 +403,44 @@
     </div>
     <div class="form-body" id="form-body">
 
+      <!-- Country -->
+      <div class="category-block open" id="cat-country">
+        <div class="category-header" onclick="toggleCategory('cat-country')">
+          <span class="category-title">Country</span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="category-body">
+          <label style="display:block;margin-bottom:0.4rem">Only show jobs located in</label>
+          <div class="country-wrap">
+            <input type="text" id="f-country" placeholder="Start typing a country…" autocomplete="off" />
+            <div class="country-dropdown" id="country-dropdown"></div>
+          </div>
+          <p class="hint">Leave blank to receive jobs from any country.</p>
+        </div>
+      </div>
+
+      <!-- Job Title -->
+      <div class="category-block open" id="cat-job-titles">
+        <div class="category-header" onclick="toggleCategory('cat-job-titles')">
+          <span class="category-title">
+            Job Title
+            <span class="category-counts">
+              <span class="count-pill count-include" id="cnt-job-titles">0 titles</span>
+            </span>
+          </span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="category-body">
+          <div class="tag-field">
+            <label>Job Titles <span class="tag include-tag">search query</span></label>
+            <div class="tag-input-row" id="row-job-titles" onclick="focusTagInput('job-titles')">
+              <input class="tag-text-input" id="f-job-titles" placeholder="Software Engineer, Data Analyst…" data-field="job-titles" />
+            </div>
+          </div>
+          <p class="hint" style="margin-top:0.5rem">Each title is used as a separate job board search query.</p>
+        </div>
+      </div>
+
       <!-- Position -->
       <div class="category-block open" id="cat-position">
         <div class="category-header" onclick="toggleCategory('cat-position')">
@@ -399,35 +471,6 @@
         </div>
       </div>
 
-      <!-- Role -->
-      <div class="category-block open" id="cat-role">
-        <div class="category-header" onclick="toggleCategory('cat-role')">
-          <span class="category-title">
-            Role
-            <span class="category-counts">
-              <span class="count-pill count-include" id="cnt-role">0 include</span>
-              <span class="count-pill count-exclude" id="cnt-exclude-role">0 exclude</span>
-            </span>
-          </span>
-          <span class="chevron">▼</span>
-        </div>
-        <div class="category-body">
-          <div class="field-pair">
-            <div class="tag-field">
-              <label>Role <span class="tag include-tag">include</span></label>
-              <div class="tag-input-row" id="row-role" onclick="focusTagInput('role')">
-                <input class="tag-text-input" id="f-role" placeholder="Engineer, Developer…" data-field="role" />
-              </div>
-            </div>
-            <div class="tag-field">
-              <label>Exclude Role <span class="tag exclude-tag">exclude</span></label>
-              <div class="tag-input-row exclude-focus" id="row-exclude-role" onclick="focusTagInput('exclude-role')">
-                <input class="tag-text-input" id="f-exclude-role" placeholder="IT, Manager…" data-field="exclude-role" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <!-- Specialization -->
       <div class="category-block open" id="cat-specialization">
@@ -519,6 +562,19 @@
         </div>
       </div>
 
+      <!-- Work Model -->
+      <div class="category-block open" id="cat-workmodel">
+        <div class="category-header" onclick="toggleCategory('cat-workmodel')">
+          <span class="category-title">Work Model</span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="category-body">
+          <label style="display:block;margin-bottom:0.6rem">Only show jobs with these work models</label>
+          <div class="workmodel-row" id="workmodel-row"></div>
+          <p class="hint">Leave all unchecked to receive jobs of any work model.</p>
+        </div>
+      </div>
+
       <!-- Email Schedule -->
       <div class="category-block open" id="cat-schedule">
         <div class="category-header" onclick="toggleCategory('cat-schedule')">
@@ -532,14 +588,14 @@
             <button class="btn-tiny" onclick="clearAllDays()">Clear</button>
           </div>
           <div class="day-grid" id="day-grid"></div>
-          <div class="selected-days-hint" id="days-hint">No days selected — you won't receive emails.</div>
+          <div class="selected-days-hint" id="days-hint">If no days are selected, you won't receive emails.</div>
           <div class="section-label">Times</div>
           <div class="time-picker-actions">
             <button class="btn-tiny" onclick="selectAllTimes()">Select all</button>
             <button class="btn-tiny" onclick="clearAllTimes()">Clear</button>
           </div>
           <div class="time-grid" id="time-grid"></div>
-          <div class="selected-times-hint" id="times-hint">No times selected — you won't receive emails.</div>
+          <div class="selected-times-hint" id="times-hint">If no times are selected, you won't receive emails.</div>
         </div>
       </div>
 
@@ -556,7 +612,7 @@
 <script>
   const SUPABASE_URL    = "https://wftqtjuwfhlaiwkakptw.supabase.co";
   const SUPABASE_ANON   = "sb_publishable__JjwYt3ShAcGxYcFM7XpQQ_P1OzX_vw";
-  const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const IS_LOCAL = ['localhost', '127.0.0.1', '[::]', ''].includes(window.location.hostname) || window.location.protocol === 'file:';
 
   const APPS_SCRIPT_URL = IS_LOCAL
     ? null
@@ -567,12 +623,12 @@
 
   let currentEmail = null;
 
-  if (IS_LOCAL) {
-    window.addEventListener('load', () => onLoggedIn('dev@local.com'));
-  }
-
-  // Checks if returning from magic link click
+  // Checks if returning from magic link click, or auto-logs in for local dev.
   window.addEventListener('load', async () => {
+    if (IS_LOCAL) {
+      onLoggedIn('dev@local.com');
+      return;
+    }
     const { data: { session } } = await sb.auth.getSession();
     if (session?.user) onLoggedIn(session.user.email);
   });
@@ -625,13 +681,17 @@
     loadRow(true); // true = auto-create row if new user
   }
 
+  // FIELDS drives the tag input system. Indices map to sheet cols via row[i+1]:
+  // position(1) ex-position(2) specialization(3) ex-specialization(4)
+  // qualification(5) ex-qualification(6) industry(7) ex-industry(8)
+  // job-titles is col 13 and is handled explicitly outside this loop.
   const FIELDS = [
     'position', 'exclude-position',
-    'role', 'exclude-role',
     'specialization', 'exclude-specialization',
     'qualification', 'exclude-qualification',
-    'industry', 'exclude-industry'
+    'industry', 'exclude-industry',
   ];
+  const JOB_TITLES_COL = 13;
 
   // ── Tag system ──────────────────────────────────────────────────────────────
 
@@ -680,11 +740,12 @@
     if (!el) return;
     const count = tagStore[fieldId].size;
     const isExclude = fieldId.startsWith('exclude-');
-    el.textContent = `${count} ${isExclude ? 'exclude' : 'include'}`;
+    const label = fieldId === 'job-titles' ? 'titles' : (isExclude ? 'exclude' : 'include');
+    el.textContent = `${count} ${label}`;
   }
 
-  // Wire up Enter key on all tag inputs
-  FIELDS.forEach(fieldId => {
+  // Wire up Enter key on all tag inputs (FIELDS + job-titles which is handled separately)
+  [...FIELDS, 'job-titles'].forEach(fieldId => {
     const input = document.getElementById('f-' + fieldId);
     if (!input) return;
     input.addEventListener('keydown', e => {
@@ -745,7 +806,7 @@
     const selected = getSelectedTimes();
     const hint = document.getElementById('times-hint');
     if (!selected.length) {
-      hint.textContent = "No times selected — you won't receive emails.";
+      hint.textContent = "If no times are selected, you won't receive emails.";
       hint.style.color = 'var(--muted)';
     } else {
       const labels = selected.map(v => ALL_TIMES.find(t => t.value === v)?.label);
@@ -804,7 +865,7 @@
     const selected = getSelectedDays();
     const hint = document.getElementById('days-hint');
     if (!selected.length) {
-      hint.textContent = "No days selected — you won't receive emails.";
+      hint.textContent = "If no days are selected, you won't receive emails.";
       hint.style.color = 'var(--muted)';
     } else {
       hint.textContent = `Active on: ${selected.map(v => ALL_DAYS.find(d => d.value === v).label).join(', ')}`;
@@ -827,8 +888,11 @@
   function getFormData() {
     const data = { email: currentEmail };
     FIELDS.forEach(f => data[f] = [...tagStore[f]].join(', '));
-    data['intervals'] = getSelectedTimes().join(', ');
-    data['days'] = getSelectedDays().join(', ');
+    data['intervals']   = getSelectedTimes().join(', ');
+    data['days']        = getSelectedDays().join(', ');
+    data['country']     = document.getElementById('f-country').value.trim();
+    data['work-model']  = getSelectedWorkModels().join(', ');
+    data['job-titles']  = [...tagStore['job-titles']].join(', ');
     return data;
   }
 
@@ -855,8 +919,14 @@
       renderTags(f);
       updateCountPill(f);
     });
-    setSelectedTimes(normalizeIntervalsValue(row[11]));
-    setSelectedDays(row[12] || '');
+    setSelectedTimes(normalizeIntervalsValue(row[9]));
+    setSelectedDays(row[10] || '');
+    document.getElementById('f-country').value = row[11] || '';
+    setSelectedWorkModels(row[12] || '');
+    const rawTitles = row[JOB_TITLES_COL] || '';
+    tagStore['job-titles'] = new Set(rawTitles.split(',').map(s => s.trim()).filter(Boolean));
+    renderTags('job-titles');
+    updateCountPill('job-titles');
   }
 
   function clearForm() {
@@ -867,6 +937,11 @@
     });
     setSelectedTimes('');
     setSelectedDays('');
+    document.getElementById('f-country').value = '';
+    setSelectedWorkModels('');
+    tagStore['job-titles'] = new Set();
+    renderTags('job-titles');
+    updateCountPill('job-titles');
   }
 
   function setLoading(on) {
@@ -877,7 +952,7 @@
   }
 
   async function loadRow(autoCreate = false) {
-    if (IS_LOCAL) return;
+    if (IS_LOCAL) { clearForm(); return; }
     setLoading(true);
     try {
       const res = await fetch(`${APPS_SCRIPT_URL}?action=get&email=${encodeURIComponent(currentEmail)}`);
@@ -939,6 +1014,123 @@
     t.style.display = 'flex';
     setTimeout(() => t.style.display = 'none', 3000);
   }
+
+  // ── Country autocomplete ────────────────────────────────────────────────────
+  const ALL_COUNTRIES = [
+    "Afghanistan","Albania","Algeria","Andorra","Angola","Antigua and Barbuda","Argentina","Armenia",
+    "Australia","Austria","Azerbaijan","Bahamas","Bahrain","Bangladesh","Barbados","Belarus","Belgium",
+    "Belize","Benin","Bhutan","Bolivia","Bosnia and Herzegovina","Botswana","Brazil","Brunei",
+    "Bulgaria","Burkina Faso","Burundi","Cabo Verde","Cambodia","Cameroon","Canada","Central African Republic",
+    "Chad","Chile","China","Colombia","Comoros","Congo","Costa Rica","Croatia","Cuba","Cyprus",
+    "Czech Republic","Denmark","Djibouti","Dominica","Dominican Republic","Ecuador","Egypt","El Salvador",
+    "Equatorial Guinea","Eritrea","Estonia","Eswatini","Ethiopia","Fiji","Finland","France","Gabon",
+    "Gambia","Georgia","Germany","Ghana","Greece","Grenada","Guatemala","Guinea","Guinea-Bissau",
+    "Guyana","Haiti","Honduras","Hungary","Iceland","India","Indonesia","Iran","Iraq","Ireland",
+    "Israel","Italy","Jamaica","Japan","Jordan","Kazakhstan","Kenya","Kiribati","Kuwait","Kyrgyzstan",
+    "Laos","Latvia","Lebanon","Lesotho","Liberia","Libya","Liechtenstein","Lithuania","Luxembourg",
+    "Madagascar","Malawi","Malaysia","Maldives","Mali","Malta","Marshall Islands","Mauritania","Mauritius",
+    "Mexico","Micronesia","Moldova","Monaco","Mongolia","Montenegro","Morocco","Mozambique","Myanmar",
+    "Namibia","Nauru","Nepal","Netherlands","New Zealand","Nicaragua","Niger","Nigeria","North Korea",
+    "North Macedonia","Norway","Oman","Pakistan","Palau","Palestine","Panama","Papua New Guinea","Paraguay",
+    "Peru","Philippines","Poland","Portugal","Qatar","Romania","Russia","Rwanda","Saint Kitts and Nevis",
+    "Saint Lucia","Saint Vincent and the Grenadines","Samoa","San Marino","Sao Tome and Principe",
+    "Saudi Arabia","Senegal","Serbia","Seychelles","Sierra Leone","Singapore","Slovakia","Slovenia",
+    "Solomon Islands","Somalia","South Africa","South Korea","South Sudan","Spain","Sri Lanka","Sudan",
+    "Suriname","Sweden","Switzerland","Syria","Taiwan","Tajikistan","Tanzania","Thailand","Timor-Leste",
+    "Togo","Tonga","Trinidad and Tobago","Tunisia","Turkey","Turkmenistan","Tuvalu","Uganda","Ukraine",
+    "United Arab Emirates","United Kingdom","United States","Uruguay","Uzbekistan","Vanuatu","Vatican City",
+    "Venezuela","Vietnam","Yemen","Zambia","Zimbabwe"
+  ];
+
+  const countryInput    = document.getElementById('f-country');
+  const countryDropdown = document.getElementById('country-dropdown');
+  let activeCountryIdx  = -1;
+
+  function renderCountryDropdown(matches) {
+    countryDropdown.innerHTML = '';
+    activeCountryIdx = -1;
+    if (!matches.length) { countryDropdown.classList.remove('open'); return; }
+    matches.slice(0, 8).forEach((name, i) => {
+      const div = document.createElement('div');
+      div.className = 'country-option';
+      div.textContent = name;
+      div.addEventListener('mousedown', e => {
+        e.preventDefault();
+        selectCountry(name);
+      });
+      countryDropdown.appendChild(div);
+    });
+    countryDropdown.classList.add('open');
+  }
+
+  function selectCountry(name) {
+    countryInput.value = name;
+    countryDropdown.classList.remove('open');
+    countryDropdown.innerHTML = '';
+  }
+
+  countryInput.addEventListener('input', () => {
+    const q = countryInput.value.trim().toLowerCase();
+    if (!q) { countryDropdown.classList.remove('open'); return; }
+    const matches = ALL_COUNTRIES.filter(c => c.toLowerCase().startsWith(q));
+    const extra   = ALL_COUNTRIES.filter(c => !c.toLowerCase().startsWith(q) && c.toLowerCase().includes(q));
+    renderCountryDropdown([...matches, ...extra]);
+  });
+
+  countryInput.addEventListener('keydown', e => {
+    const opts = countryDropdown.querySelectorAll('.country-option');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeCountryIdx = Math.min(activeCountryIdx + 1, opts.length - 1);
+      opts.forEach((o, i) => o.classList.toggle('active', i === activeCountryIdx));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeCountryIdx = Math.max(activeCountryIdx - 1, 0);
+      opts.forEach((o, i) => o.classList.toggle('active', i === activeCountryIdx));
+    } else if (e.key === 'Enter' && activeCountryIdx >= 0) {
+      e.preventDefault();
+      selectCountry(opts[activeCountryIdx].textContent);
+    } else if (e.key === 'Escape') {
+      countryDropdown.classList.remove('open');
+    }
+  });
+
+  countryInput.addEventListener('blur', () => {
+    setTimeout(() => countryDropdown.classList.remove('open'), 150);
+  });
+
+  // ── Work Model chips ────────────────────────────────────────────────────────
+  const ALL_WORK_MODELS = ['Remote', 'Hybrid', 'On-site'];
+  const wmRow = document.getElementById('workmodel-row');
+
+  ALL_WORK_MODELS.forEach(model => {
+    const id   = 'wm-' + model.toLowerCase().replace('-', '');
+    const wrap = document.createElement('div');
+    wrap.className = 'wm-chip';
+    wrap.innerHTML = `<input type="checkbox" id="${id}" value="${model}"><label for="${id}">${model}</label>`;
+    wmRow.appendChild(wrap);
+  });
+
+  function getSelectedWorkModels() {
+    return ALL_WORK_MODELS.filter(m => {
+      const id = 'wm-' + m.toLowerCase().replace('-', '');
+      return document.getElementById(id)?.checked;
+    });
+  }
+
+  function setSelectedWorkModels(val) {
+    ALL_WORK_MODELS.forEach(m => {
+      const id = 'wm-' + m.toLowerCase().replace('-', '');
+      document.getElementById(id).checked = false;
+    });
+    if (!val) return;
+    val.split(',').map(s => s.trim()).forEach(v => {
+      const id = 'wm-' + v.toLowerCase().replace('-', '');
+      const el = document.getElementById(id);
+      if (el) el.checked = true;
+    });
+  }
+
 
   function showBadge(text) {
     const b = document.getElementById('status-badge');
