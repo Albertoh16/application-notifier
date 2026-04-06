@@ -39,14 +39,6 @@ jobs:
           python -m playwright install-deps chromium
           python -m playwright install chromium
 
-      - name: Verify Python and jobspy
-        run: |
-          which python3
-          which pip
-          python3 -m pip list | grep jobspy
-          python3 -m pip show jobspy
-          python3 -c "import jobspy; print(jobspy.__version__)"
-
       # ----- Scripting ------------------------------------------------------------------
 
       - name: Run scraper

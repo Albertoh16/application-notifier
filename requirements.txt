@@ -4,4 +4,4 @@ resend
 sentence-transformers
 torch
 transformers
-jobspy
+python-jobspy
