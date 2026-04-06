@@ -65,12 +65,6 @@ def parseDays(value):
     
     return {item.strip() for item in str(value).split(",") if item.strip()}
 
-# Parses country field into a single plain text country name.
-def parseCountry(value):
-    if not value or not str(value).strip():
-        return ""
-    return str(value).strip()
-
 # Parses the work-model field.
 def parseWorkModel(value):
     if not value or not str(value).strip():
@@ -107,9 +101,8 @@ def rowToFilters(row):
         "exclude industry":       parseCell(row[8]),
         "intervals":              parseIntervals(row[9]),
         "days":                   parseDays(row[10]),
-        "country":                parseCountry(row[11]) if len(row) > 11 else "",
-        "work-model":             parseWorkModel(row[12]) if len(row) > 12 else set(),
-        "job-titles":             parseJobTitles(row[13]) if len(row) > 13 else set(),
+        "work-model":             parseWorkModel(row[11]) if len(row) > 11 else set(),
+        "job-titles":             parseJobTitles(row[12]) if len(row) > 12 else set(),
     }
 
 # Fetches all user rows from the Google Sheet.
@@ -137,7 +130,6 @@ def fetchAllUsers():
                 users[email] = rowToFilters(row)
                 print(f"[config] Loaded filters for {email}")
                 print(f"[config DEBUG] {email} intervals raw={row[9]!r} type={type(row[9]).__name__} parsed={users[email]['intervals']!r}")
-
         print(f"[config] Total users loaded: {len(users)}")
 
         return users

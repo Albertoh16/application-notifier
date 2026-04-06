@@ -160,12 +160,6 @@ def excludeCheck(title: str, qualifications: str, industry: list, filters: dict)
 
 # ── Location and work-model check ──────────────────────────────────
 
-def countryCheck(location: str, filters: dict) -> bool:
-    country = filters.get("country", "")
-    if not country:
-        return True
-    return country.lower() in location.lower()
-
 def workModelCheck(workModel: str, filters: dict) -> bool:
     allowed = filters.get("work-model", set())
     if not allowed:
@@ -215,11 +209,6 @@ def FilterJobs(filters: dict, resolvedJobs: dict) -> dict:
 
     for i, job in enumerate(flatJobs):
         company, title, url, location, workModel, industry, postDate, qualifications = job
-
-        # Country filter.
-        if not countryCheck(location, filters):
-            print(f"[EXCLUDED] '{title}', location '{location}' not in country '{filters.get('country')}'")
-            continue
 
         # Work-model filter.
         if not workModelCheck(workModel, filters):

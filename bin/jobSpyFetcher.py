@@ -19,24 +19,8 @@ WORK_MODEL_MAP = {
     "fulltime":  "On-site",
 }
 
-# Indeed requires a country code string. So we map the lowercase country names to codes.
-# Unsupported countries are skipped.
-INDEED_COUNTRY_MAP = {
-    "united states": "USA", "united kingdom": "UK", "canada": "Canada",
-    "australia": "Australia", "germany": "Germany", "france": "France",
-    "india": "India", "netherlands": "Netherlands", "singapore": "Singapore",
-    "new zealand": "New Zealand", "ireland": "Ireland", "spain": "Spain",
-    "italy": "Italy", "brazil": "Brazil", "mexico": "Mexico",
-    "south africa": "South Africa", "austria": "Austria", "belgium": "Belgium",
-    "switzerland": "Switzerland", "sweden": "Sweden", "norway": "Norway",
-    "denmark": "Denmark", "finland": "Finland", "poland": "Poland",
-    "portugal": "Portugal", "argentina": "Argentina", "chile": "Chile",
-    "colombia": "Colombia", "peru": "Peru", "indonesia": "Indonesia",
-    "japan": "Japan", "south korea": "South Korea", "malaysia": "Malaysia",
-    "philippines": "Philippines", "thailand": "Thailand", "vietnam": "Vietnam",
-    "pakistan": "Pakistan", "nigeria": "Nigeria", "kenya": "Kenya",
-    "egypt": "Egypt",
-}
+# Indeed country code for the United States.
+INDEED_COUNTRY = "USA"
 
 def normalizeWorkModel(jobType) -> str:
     if not jobType:
@@ -110,92 +94,75 @@ def normalizeRows(df: pd.DataFrame, earliestStart: datetime, seen: set) -> list:
 
     return results
 
-def runSingleQuery(country: str, jobTitle: str, earliestStart: datetime) -> list:
-    indeedCountry = INDEED_COUNTRY_MAP.get(country.lower())
-    sites = JOBSPY_SITES if indeedCountry else [s for s in JOBSPY_SITES if s != "indeed"]
-
-    if not sites:
-        print(f"[JobSpy] No supported sites for '{country}', skipping.")
-        return []
-
-    print(f"[JobSpy] Querying: '{jobTitle}' in '{country}' via {sites}")
+def runSingleQuery(jobTitle: str, earliestStart: datetime) -> list:
+    print(f"[JobSpy] Querying: '{jobTitle}' via {JOBSPY_SITES}")
 
     try:
-        kwargs = dict(
-            site_name=sites,
+        df = scrape_jobs(
+            site_name=JOBSPY_SITES,
             search_term=jobTitle,
             results_wanted=RESULTS_PER_SITE,
             hours_old=26,
             linkedin_fetch_description=True,
+            country_indeed=INDEED_COUNTRY,
         )
 
-        if indeedCountry:
-            kwargs["country_indeed"] = indeedCountry
-
-        df = scrape_jobs(**kwargs)
-
     except Exception as e:
-        print(f"[JobSpy] Query failed ('{jobTitle}' / '{country}'): {e}")
+        print(f"[JobSpy] Query failed ('{jobTitle}'): {e}")
         return []
 
     if df is None or df.empty:
-        print(f"[JobSpy] No results for '{jobTitle}' in '{country}'.")
+        print(f"[JobSpy] No results for '{jobTitle}'.")
         return []
 
-    print(f"[JobSpy] '{jobTitle}' / '{country}': {len(df)} raw results")
+    print(f"[JobSpy] '{jobTitle}': {len(df)} raw results")
 
-    # Each query gets its own seen set, then it cross-queries to dedup fetchJobSpyJobs.
     return normalizeRows(df, earliestStart, set())
 
-def buildQueryPairs(activeUsers: dict) -> list:
-    pairs: set = set()
+def buildQueryTitles(activeUsers: dict) -> set:
+    titles: set = set()
 
     for filters in activeUsers.values():
-        country   = filters.get("country", "").strip().lower()
         jobTitles = filters.get("job-titles", set())
-
-        if not country:
-            continue
 
         if jobTitles:
             for title in jobTitles:
-                pairs.add((country, title.strip()))
-
+                titles.add(title.strip())
         else:
-            print(f"[JobSpy] No job titles for a user in '{country}', skipping that user.")
-    
-    return list(pairs)
+            print(f"[JobSpy] A user has no job titles set, skipping that user.")
+
+    return titles
 
 # Takes the unique (country, jobTitle) pairs across all active users, runs one
 # JobSpy query per pair concurrently, and then merges and deduplicates into a
 # single company-keyed dict in the standard tuple format.
 def fetchJobSpyJobs(activeUsers: dict, earliestStart: datetime) -> dict:
-    pairs = buildQueryPairs(activeUsers)
+    titles = buildQueryTitles(activeUsers)
 
-    if not pairs:
-        print("[JobSpy] No (country, jobTitle) pairs found, skipping.")
+    if not titles:
+        print("[JobSpy] No job titles found, skipping.")
         return {}
 
-    print(f"[JobSpy] Running {len(pairs)} queries: {pairs}")
+    print(f"[JobSpy] Running {len(titles)} queries: {titles}")
 
     allTuples: list = []
 
-    with ThreadPoolExecutor(max_workers=min(len(pairs), 6)) as executor:
+    with ThreadPoolExecutor(max_workers=min(len(titles), 6)) as executor:
         futures = {
-            executor.submit(runSingleQuery, country, jobTitle, earliestStart): (country, jobTitle)
-            for country, jobTitle in pairs
+            executor.submit(runSingleQuery, jobTitle, earliestStart): jobTitle
+            for jobTitle in titles
         }
 
         for future in as_completed(futures):
-            country, jobTitle = futures[future]
-            
+            jobTitle = futures[future]
+
             try:
                 tuples = future.result()
                 allTuples.extend(tuples)
-                print(f"[JobSpy] '{jobTitle}' / '{country}': {len(tuples)} normalized jobs")
-            
+                print(f"[JobSpy] '{jobTitle}': {len(tuples)} normalized jobs")
+
             except Exception as e:
-                print(f"[JobSpy] Future error ('{jobTitle}', '{country}'): {e}")
+                print(f"[JobSpy] Future error ('{jobTitle}'): {e}")
 
     # Performs cross-query deduplication then restructures it into a company keyed map.
     jobs: dict = {}
