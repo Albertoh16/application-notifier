@@ -9,64 +9,24 @@ from zoneinfo import ZoneInfo
 ET = ZoneInfo("America/New_York")
 
 initialTime = datetime.now(tz=timezone.utc)
-currentHour = initialTime.astimezone(ET).strftime("%H:00")
-currentDay  = initialTime.astimezone(ET).strftime("%A")
 
-if not USERS:
-    print("No users found in sheet, exiting.")
+# Hard-coded to a single user with a fixed 6-hour lookback window.
+TARGET_EMAIL = "jobsforalbert16@gmail.com"
+
+if TARGET_EMAIL not in USERS:
+    print(f"{TARGET_EMAIL} not found in config, exiting.")
     exit()
 
-# Filters down to only users scheduled for this hour and day.
-# Users with no intervals or no days set receive emails every run.
-activeUsers = {
-    email: filters for email, filters in USERS.items()
-    if (not filters.get("intervals") or currentHour in filters.get("intervals", set()))
-    and (not filters.get("days") or currentDay in filters.get("days", set()))
-}
+activeUsers = {TARGET_EMAIL: USERS[TARGET_EMAIL]}
 
-# If there are no users scheduled for the current day and time, we stop the
-# action completely.
-if not activeUsers:
-    print(f"No users scheduled for {currentDay} {currentHour}, exiting.")
-    exit()
+print(f"Running for {TARGET_EMAIL}")
 
-print(f"[{currentDay} {currentHour}] {len(activeUsers)} user(s) scheduled: {list(activeUsers.keys())}")
-
-# We take the user's list of times and we'll display times between the user's decided times to get emails.
-def getPreviousIntervalTime(intervals: set, currentTime: datetime) -> datetime:
-    currentTimeET = currentTime.astimezone(ET)
-
-    cutoff = currentTime - timedelta(hours=24)
-
-    if not intervals or len(intervals) == 1:
-        return cutoff
-
-    sortedTimes = sorted(intervals, key=lambda t: int(t.split(":")[0]))
-    currentHourStr = currentTimeET.strftime("%H:00")
-
-    if currentHourStr not in sortedTimes:
-        return cutoff
-
-    idx = sortedTimes.index(currentHourStr)
-    prevHourStr = sortedTimes[idx - 1]
-    prevHour = int(prevHourStr.split(":")[0])
-    currHour = int(currentHourStr.split(":")[0])
-
-    if prevHour < currHour:
-        windowStart = currentTimeET.replace(hour=prevHour, minute=0, second=0, microsecond=0)
-    else:
-        windowStart = (currentTimeET - timedelta(days=1)).replace(hour=prevHour, minute=0, second=0, microsecond=0)
-
-    windowStart = windowStart.astimezone(timezone.utc)
-
-    return max(windowStart, cutoff)
-
+# Fixed 6-hour lookback — ignores interval/day scheduling.
 windowStarts = {
-    email: getPreviousIntervalTime(filters.get("intervals", set()), initialTime)
-    for email, filters in activeUsers.items()
+    TARGET_EMAIL: initialTime - timedelta(hours=6)
 }
 
-earliestStart = min(windowStarts.values())
+earliestStart = windowStarts[TARGET_EMAIL]
 
 print(f"Scraping window: {earliestStart} -> {initialTime}")
 
@@ -76,7 +36,6 @@ with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     context = browser.new_context()
 
-    # Scrapes jobs from the listing page.
     scrapePage = context.new_page()
 
     jobs    = []
@@ -109,7 +68,6 @@ with sync_playwright() as p:
     scrapePage.goto("https://jobright.ai/minisites-jobs/intern/us/swe")
     scrapePage.wait_for_load_state("domcontentloaded")
 
-    # Captures initial jobs from table.
     data = scrapePage.evaluate("""() => JSON.parse(document.getElementById('__NEXT_DATA__').textContent)""")
 
     for job in data["props"]["pageProps"]["initialJobs"]:
@@ -129,10 +87,8 @@ with sync_playwright() as p:
                 "postedDate":     job["postedDate"]
             })
 
-    # Scrolls to load more rows, stopping early if no new jobs appear.
     tableBody = scrapePage.query_selector(".index_bodyViewport__3xQLm")
 
-    # This is the number of consecutive stale jobs required before stopping.
     STALE_STREAK_LIMIT = 5
 
     for _ in range(50):
@@ -144,7 +100,6 @@ with sync_playwright() as p:
             print(f"No new jobs after scroll, stopping at {len(seenIds)} jobs.")
             break
 
-        # Only stop once the last N loaded jobs are all within our window of time.
         recentJobs = sorted(jobs, key=lambda j: j["postedDate"], reverse=True)
 
         outOfWindow = sum(
@@ -174,8 +129,6 @@ with sync_playwright() as p:
     for company in allNeededJobs:
         allNeededJobs[company].sort(key=lambda x: x[5], reverse=True)
 
-    # Fetches real URLs using the logged-in tab.
-    print("Building job listings...")
     resolvedJobs = {}
 
     for company, listings in allNeededJobs.items():
@@ -187,19 +140,16 @@ with sync_playwright() as p:
     browser.close()
     print("Browser closed.")
 
-# Filters and emails a single user, runs concurrently with other users.
 async def processUser(email, filters, resolvedJobs, initialTime):
     windowStart = windowStarts[email]
 
     print(f"\n[{email}] Window: {windowStart} → {initialTime}")
 
-    # Trims the resolvedJobs to this user's window.
     userResolvedJobs = {
         company: [
             job for job in listings
             if datetime.fromtimestamp(job[5] / 1000, tz=timezone.utc) >= windowStart
         ]
-
         for company, listings in resolvedJobs.items()
     }
 
@@ -212,11 +162,10 @@ async def processUser(email, filters, resolvedJobs, initialTime):
 
     await asyncio.to_thread(sendEmail, userJobs, initialTime, email)
 
-# Runs all users concurrently.
 async def processAllUsers(resolvedJobs, initialTime):
     tasks = [
         processUser(email, filters, resolvedJobs, initialTime)
-        for email, filters in activeUsers.items() 
+        for email, filters in activeUsers.items()
     ]
     await asyncio.gather(*tasks)
 
