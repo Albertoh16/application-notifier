@@ -2,143 +2,237 @@ from playwright.sync_api import sync_playwright
 from config import USERS
 from emailer import sendEmail
 from filter import FilterJobs
+from jobSpyFetcher import fetchJobSpyJobs
 from datetime import datetime, timedelta, timezone
 import asyncio
-
+import concurrent.futures
 from zoneinfo import ZoneInfo
 ET = ZoneInfo("America/New_York")
 
 initialTime = datetime.now(tz=timezone.utc)
+currentHour = initialTime.astimezone(ET).strftime("%H:00")
+currentDay  = initialTime.astimezone(ET).strftime("%A")
 
-# Hard-coded to a single user with a fixed 6-hour lookback window.
-TARGET_EMAIL = "jobsforalbert16@gmail.com"
-
-if TARGET_EMAIL not in USERS:
-    print(f"{TARGET_EMAIL} not found in config, exiting.")
+if not USERS:
+    print("No users found in sheet, exiting.")
     exit()
 
-activeUsers = {TARGET_EMAIL: USERS[TARGET_EMAIL]}
-
-print(f"Running for {TARGET_EMAIL}")
-
-# Fixed 6-hour lookback — ignores interval/day scheduling.
-windowStarts = {
-    TARGET_EMAIL: initialTime - timedelta(hours=6)
+# Filters down to only users scheduled for this hour and day.
+# Users with no intervals or no days set receive emails every run.
+activeUsers = {
+    email: filters for email, filters in USERS.items()
+    if (not filters.get("intervals") or currentHour in filters.get("intervals", set()))
+    and (not filters.get("days") or currentDay in filters.get("days", set()))
 }
 
-earliestStart = windowStarts[TARGET_EMAIL]
+# If there are no users scheduled for the current day and time, we stop the
+# action completely.
+if not activeUsers:
+    print(f"No users scheduled for {currentDay} {currentHour}, exiting.")
+    exit()
+
+print(f"[{currentDay} {currentHour}] {len(activeUsers)} user(s) scheduled: {list(activeUsers.keys())}")
+
+# We take the user's list of times and we'll display times between the user's decided times to get emails.
+def getPreviousIntervalTime(intervals: set, currentTime: datetime) -> datetime:
+    currentTimeET = currentTime.astimezone(ET)
+
+    cutoff = currentTime - timedelta(hours=24)
+
+    if not intervals or len(intervals) == 1:
+        return cutoff
+
+    sortedTimes = sorted(intervals, key=lambda t: int(t.split(":")[0]))
+    currentHourStr = currentTimeET.strftime("%H:00")
+
+    if currentHourStr not in sortedTimes:
+        return cutoff
+
+    idx = sortedTimes.index(currentHourStr)
+    prevHourStr = sortedTimes[idx - 1]
+    prevHour = int(prevHourStr.split(":")[0])
+    currHour = int(currentHourStr.split(":")[0])
+
+    if prevHour < currHour:
+        windowStart = currentTimeET.replace(hour=prevHour, minute=0, second=0, microsecond=0)
+    else:
+        windowStart = (currentTimeET - timedelta(days=1)).replace(hour=prevHour, minute=0, second=0, microsecond=0)
+
+    windowStart = windowStart.astimezone(timezone.utc)
+
+    return max(windowStart, cutoff)
+
+windowStarts = {
+    email: getPreviousIntervalTime(filters.get("intervals", set()), initialTime)
+    for email, filters in activeUsers.items()
+}
+
+earliestStart = min(windowStarts.values())
 
 print(f"Scraping window: {earliestStart} -> {initialTime}")
 
-# Uses a single browser to run everything.
-with sync_playwright() as p:
-    print("Launching Chromium...")
-    browser = p.chromium.launch(headless=True)
-    context = browser.new_context()
-
-    scrapePage = context.new_page()
-
+# ── Scraping ──────────────────────────────────────────────────────────────────
+def scrapeJobright() -> dict:
+    """Scrapes Jobright via Playwright. Returns the same company-keyed dict format."""
     jobs    = []
     seenIds = set()
 
-    def handleResponse(response):
-        if "swan/mini-sites/list" in response.url:
-            try:
-                data = response.json()
-                if "result" in data and "jobList" in data["result"]:
-                    for job in data["result"]["jobList"]:
-                        jobId = job["jobId"]
-                        if jobId not in seenIds:
-                            seenIds.add(jobId)
-                            jobs.append({
-                                "title":          job["properties"]["title"],
-                                "company":        job["properties"]["company"],
-                                "location":       job["properties"]["location"],
-                                "workModel":      job["properties"]["workModel"],
-                                "applyUrl":       f"https://jobright.ai/jobs/info/{jobId}",
-                                "industry":       job["properties"]["industry"],
-                                "qualifications": job["properties"]["qualifications"],
-                                "postedDate":     job["postedAt"]
-                            })
+    with sync_playwright() as p:
+        print("[Jobright] Launching Chromium...")
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context()
 
-            except Exception as e:
-                print(f"Error: {e}")
+        scrapePage = context.new_page()
 
-    scrapePage.on("response", handleResponse)
-    scrapePage.goto("https://jobright.ai/minisites-jobs/intern/us/swe")
-    scrapePage.wait_for_load_state("domcontentloaded")
+        def handleResponse(response):
+            if "swan/mini-sites/list" in response.url:
+                try:
+                    data = response.json()
+                    if "result" in data and "jobList" in data["result"]:
+                        for job in data["result"]["jobList"]:
+                            jobId = job["jobId"]
+                            if jobId not in seenIds:
+                                seenIds.add(jobId)
+                                jobs.append({
+                                    "title":          job["properties"]["title"],
+                                    "company":        job["properties"]["company"],
+                                    "location":       job["properties"]["location"],
+                                    "workModel":      job["properties"]["workModel"],
+                                    "applyUrl":       f"https://jobright.ai/jobs/info/{jobId}",
+                                    "industry":       job["properties"]["industry"],
+                                    "qualifications": job["properties"]["qualifications"],
+                                    "postedDate":     job["postedAt"]
+                                })
 
-    data = scrapePage.evaluate("""() => JSON.parse(document.getElementById('__NEXT_DATA__').textContent)""")
+                except Exception as e:
+                    print(f"[Jobright] Response parse error: {e}")
 
-    for job in data["props"]["pageProps"]["initialJobs"]:
-        jobId = job["id"]
+        scrapePage.on("response", handleResponse)
+        scrapePage.goto("https://jobright.ai/minisites-jobs/intern/us/swe")
+        scrapePage.wait_for_load_state("domcontentloaded")
 
-        if jobId not in seenIds:
-            seenIds.add(jobId)
-            
-            jobs.append({
-                "title":          job["title"],
-                "company":        job["company"],
-                "location":       job["location"],
-                "workModel":      job["workModel"],
-                "applyUrl":       job["applyUrl"],
-                "industry":       job["industry"],
-                "qualifications": job["qualifications"],
-                "postedDate":     job["postedDate"]
-            })
+        # Captures initial jobs from table.
+        data = scrapePage.evaluate("""() => JSON.parse(document.getElementById('__NEXT_DATA__').textContent)""")
 
-    tableBody = scrapePage.query_selector(".index_bodyViewport__3xQLm")
+        for job in data["props"]["pageProps"]["initialJobs"]:
+            jobId = job["id"]
 
-    STALE_STREAK_LIMIT = 5
+            if jobId not in seenIds:
+                seenIds.add(jobId)
 
-    for _ in range(50):
-        prevCount = len(seenIds)
-        tableBody.evaluate("el => el.scrollTop += 3000")
-        scrapePage.wait_for_timeout(600)
+                jobs.append({
+                    "title":          job["title"],
+                    "company":        job["company"],
+                    "location":       job["location"],
+                    "workModel":      job["workModel"],
+                    "applyUrl":       job["applyUrl"],
+                    "industry":       job["industry"],
+                    "qualifications": job["qualifications"],
+                    "postedDate":     job["postedDate"]
+                })
 
-        if len(seenIds) == prevCount:
-            print(f"No new jobs after scroll, stopping at {len(seenIds)} jobs.")
-            break
+        tableBody = scrapePage.query_selector(".index_bodyViewport__3xQLm")
+        STALE_STREAK_LIMIT = 5
 
-        recentJobs = sorted(jobs, key=lambda j: j["postedDate"], reverse=True)
+        for _ in range(50):
+            prevCount = len(seenIds)
+            tableBody.evaluate("el => el.scrollTop += 3000")
+            scrapePage.wait_for_timeout(600)
 
-        outOfWindow = sum(
-            1 for j in recentJobs[:STALE_STREAK_LIMIT]
-            if datetime.fromtimestamp(j["postedDate"] / 1000, tz=timezone.utc) < earliestStart
-        )
+            if len(seenIds) == prevCount:
+                print(f"[Jobright] No new jobs after scroll, stopping at {len(seenIds)} jobs.")
+                break
 
-        if outOfWindow >= STALE_STREAK_LIMIT:
-            print(f"Last {STALE_STREAK_LIMIT} jobs all outside window, stopping at {len(seenIds)} jobs.")
-            break
+            recentJobs = sorted(jobs, key=lambda j: j["postedDate"], reverse=True)
 
-    scrapePage.close()
-    print("Scraping tab closed.")
+            outOfWindow = sum(
+                1 for j in recentJobs[:STALE_STREAK_LIMIT]
+                if datetime.fromtimestamp(j["postedDate"] / 1000, tz=timezone.utc) < earliestStart
+            )
 
-    allNeededJobs = {}
+            if outOfWindow >= STALE_STREAK_LIMIT:
+                print(f"[Jobright] Last {STALE_STREAK_LIMIT} jobs outside window, stopping at {len(seenIds)} jobs.")
+                break
+
+        scrapePage.close()
+        browser.close()
+        print("[Jobright] Browser closed.")
+
+    # Restructure into company-keyed dict
+    allJobs: dict[str, list] = {}
 
     for job in jobs:
-        if job["company"] not in allNeededJobs:
-            allNeededJobs[job["company"]] = []
-
-        allNeededJobs[job["company"]].append((
+        company = job["company"]
+        if company not in allJobs:
+            allJobs[company] = []
+        allJobs[company].append((
             job["title"], job["applyUrl"], job["location"],
             job["workModel"], job["industry"], job["postedDate"],
             job["qualifications"]
         ))
 
-    for company in allNeededJobs:
-        allNeededJobs[company].sort(key=lambda x: x[5], reverse=True)
+    for company in allJobs:
+        allJobs[company].sort(key=lambda x: x[5], reverse=True)
 
-    resolvedJobs = {}
+    print(f"[Jobright] Collected {sum(len(v) for v in allJobs.values())} jobs across {len(allJobs)} companies.")
+    return allJobs
 
-    for company, listings in allNeededJobs.items():
-        resolvedJobs[company] = []
 
-        for (title, jobrightURL, location, workModel, industry, postDate, qualifications) in listings:
-            resolvedJobs[company].append((title, jobrightURL, location, workModel, industry, postDate, qualifications))
+def mergeJobSources(jobrightJobs: dict, jobspyJobs: dict) -> dict:
+    """
+    Merges JobSpy results into the Jobright results, deduplicating by
+    (company_lower, title_lower). Jobright entries are preferred when a
+    duplicate is found since they carry richer industry/qualifications data.
+    """
+    merged = {company: list(listings) for company, listings in jobrightJobs.items()}
 
-    browser.close()
-    print("Browser closed.")
+    # Build a lookup of (company_lower, title_lower) pairs already present
+    existing: set[tuple[str, str]] = set()
+    for company, listings in merged.items():
+        for listing in listings:
+            existing.add((company.lower(), listing[0].lower()))
+
+    added = 0
+
+    for company, listings in jobspyJobs.items():
+        for listing in listings:
+            key = (company.lower(), listing[0].lower())
+            if key in existing:
+                continue  # already have this from Jobright
+
+            # Find the matching company key in merged (case-insensitive)
+            matchedKey = next(
+                (k for k in merged if k.lower() == company.lower()), None
+            )
+
+            if matchedKey:
+                merged[matchedKey].append(listing)
+                merged[matchedKey].sort(key=lambda x: x[5], reverse=True)
+            else:
+                merged[company] = [listing]
+
+            existing.add(key)
+            added += 1
+
+    print(f"[Merge] Added {added} unique jobs from JobSpy. Total companies: {len(merged)}")
+    return merged
+
+# ── Run Scrapers ────────────────────────────────────────────
+print("Starting parallel scrape (Jobright + JobSpy)...")
+
+with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+    jobrightFuture = executor.submit(scrapeJobright)
+    jobspyFuture   = executor.submit(fetchJobSpyJobs, activeUsers, earliestStart)
+
+    jobrightJobs = jobrightFuture.result()
+    jobspyJobs   = jobspyFuture.result()
+
+resolvedJobs = mergeJobSources(jobrightJobs, jobspyJobs)
+
+totalJobs = sum(len(v) for v in resolvedJobs.values())
+print(f"\nTotal jobs after merge: {totalJobs} across {len(resolvedJobs)} companies.")
+
+# ── User filtering and emailing ──────────────────────────────────────────
 
 async def processUser(email, filters, resolvedJobs, initialTime):
     windowStart = windowStarts[email]
@@ -155,7 +249,7 @@ async def processUser(email, filters, resolvedJobs, initialTime):
 
     userResolvedJobs = {k: v for k, v in userResolvedJobs.items() if v}
 
-    userJobs = await asyncio.to_thread(FilterJobs, filters, userResolvedJobs)
+    userJobs  = await asyncio.to_thread(FilterJobs, filters, userResolvedJobs)
     totalJobs = sum(len(v) for v in userJobs.values())
 
     print(f"[{email}] Sending {totalJobs} jobs.")

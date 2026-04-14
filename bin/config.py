@@ -104,19 +104,19 @@ def parseHierarchy(value):
     return result
 
 # Converts the sheet row into a filters map matching the scraper's expected format.
+# Sheet column order:
+# [0] Email | [1] Hierarchy | [2] Specialization | [3] Qualification
+# [4] Industry | [5] Intervals | [6] Days | [7] Work Model | [8] Job Title
 def rowToFilters(row):
     return {
-        "hierarchy":              parseHierarchy(row[1]),
-        "specialization":         parseCell(row[2]),
-        "exclude specialization": parseCell(row[3]),
-        "qualification":          parseCell(row[4]),
-        "exclude qualification":  parseCell(row[5]),
-        "industry":               parseCell(row[6]),
-        "exclude industry":       parseCell(row[7]),
-        "intervals":              parseIntervals(row[8]),
-        "days":                   parseDays(row[9]),
-        "work-model":             parseWorkModel(row[10]) if len(row) > 10 else set(),
-        "job-title":              parseJobTitles(row[11]) if len(row) > 11 else set(),
+        "hierarchy":      parseHierarchy(row[1]),
+        "specialization": parseCell(row[2]),
+        "qualification":  parseCell(row[3]),
+        "industry":       parseCell(row[4]),
+        "intervals":      parseIntervals(row[5]),
+        "days":           parseDays(row[6]),
+        "work-model":     parseWorkModel(row[7]) if len(row) > 7 else set(),
+        "job-title":      parseJobTitles(row[8]) if len(row) > 8 else set(),
     }
 
 # Fetches all user rows from the Google Sheet.
